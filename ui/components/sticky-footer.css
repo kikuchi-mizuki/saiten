@@ -1,0 +1,24 @@
+/* ========================================
+   Sticky Footer Component
+   ======================================== */
+
+.commercial-sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 50;
+  background-color: var(--bg);
+  padding: var(--space-3) 0;
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 8px rgba(16, 24, 40, 0.04);
+}
+
+.commercial-sticky-footer--safe {
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+}
+
+.commercial-sticky-footer-content {
+  max-width: 100%;
+  width: 100%;
+}
+

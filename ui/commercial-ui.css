@@ -1,0 +1,479 @@
+/* ============================================
+   Design Tokens - Commercial Grade UI
+   ============================================ */
+
+:root {
+	/* === Colors === */
+	--bg: #F7F8FA;
+	--card: #FFFFFF;
+	--border: #E6E8EE;
+	--text-strong: #0F172A;
+	--text: #334155;
+	--text-muted: #64748B;
+	--primary: #2563EB;
+	--primary-ink: #0B3BA7;
+	--success: #16A34A;
+	--warning: #F59E0B;
+	--danger: #DC2626;
+	
+	/* === Shadows === */
+	--shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 1px rgba(16, 24, 40, 0.06);
+	--shadow-md: 0 8px 24px rgba(16, 24, 40, 0.08);
+	
+	/* === Border Radius === */
+	--radius: 14px;
+	
+	/* === Spacing === */
+	--space-1: 6px;
+	--space-2: 10px;
+	--space-3: 16px;
+	--space-4: 24px;
+	--space-5: 32px;
+	
+	/* === Typography === */
+	--font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans JP', sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	
+	/* === Typography Scale === */
+	/* h1: 22/28 bold */
+	--font-h1-size: 22px;
+	--font-h1-line: 28px;
+	--font-h1-weight: 700;
+	
+	/* h2: 18/26 semibold */
+	--font-h2-size: 18px;
+	--font-h2-line: 26px;
+	--font-h2-weight: 600;
+	
+	/* body: 15/24 regular */
+	--font-body-size: 15px;
+	--font-body-line: 24px;
+	--font-body-weight: 400;
+	
+	/* caption: 13/20 medium */
+	--font-caption-size: 13px;
+	--font-caption-line: 20px;
+	--font-caption-weight: 500;
+	
+	/* === Focus Ring === */
+	--focus-ring: 2px solid color-mix(in srgb, var(--primary) 70%, transparent);
+}
+
+/* ============================================
+   Base Styles - Commercial Grade UI
+   ============================================ */
+
+@import '../design-tokens.css';
+
+/* === Reset & Base === */
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	padding: 0;
+	background-color: var(--bg);
+	font-family: var(--font-body);
+	font-size: var(--font-body-size);
+	line-height: var(--font-body-line);
+	font-weight: var(--font-body-weight);
+	color: var(--text);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* === Typography === */
+h1 {
+	font-size: var(--font-h1-size);
+	line-height: var(--font-h1-line);
+	font-weight: var(--font-h1-weight);
+	color: var(--text-strong);
+	margin: 0;
+}
+
+h2 {
+	font-size: var(--font-h2-size);
+	line-height: var(--font-h2-line);
+	font-weight: var(--font-h2-weight);
+	color: var(--text-strong);
+	margin: 0;
+}
+
+h3 {
+	font-size: var(--font-h2-size);
+	line-height: var(--font-h2-line);
+	font-weight: var(--font-h2-weight);
+	color: var(--text-strong);
+	margin: 0 0 var(--space-2) 0;
+}
+
+/* === Focus Styles === */
+*:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+/* === Scrollbar === */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--border);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--text-muted);
+}
+
+/* === Grid Layout === */
+.main .block-container {
+	max-width: 1280px;
+	margin: 0 auto;
+	padding: var(--space-4);
+	display: grid;
+	grid-template-columns: repeat(12, 1fr);
+	gap: var(--space-4);
+}
+
+/* 左カラム: 7/12 */
+[data-testid="column"]:first-child {
+	grid-column: 1 / 8;
+}
+
+/* 右カラム: 5/12 */
+[data-testid="column"]:last-child {
+	grid-column: 8 / 13;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	max-height: calc(100vh - var(--space-4) * 2);
+}
+
+/* === Card Base === */
+.card {
+	background: var(--card);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-sm);
+	padding: var(--space-4);
+}
+
+/* === Responsive === */
+@media (max-width: 1024px) {
+	.main .block-container {
+		grid-template-columns: 1fr;
+		gap: var(--space-3);
+	}
+	
+	[data-testid="column"]:first-child,
+	[data-testid="column"]:last-child {
+		grid-column: 1 / -1;
+	}
+	
+	[data-testid="column"]:last-child {
+		max-height: none;
+	}
+}
+
+/* ============================================
+   Button Component
+   ============================================ */
+
+@import '../design-tokens.css';
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-family: var(--font-body);
+	font-weight: var(--font-caption-weight);
+	border: none;
+	border-radius: var(--radius);
+	cursor: pointer;
+	transition: all 0.2s ease;
+	text-decoration: none;
+	white-space: nowrap;
+	user-select: none;
+}
+
+.btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.btn:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+/* === Sizes === */
+.btn-md {
+	min-height: 44px;
+	padding: var(--space-2) var(--space-3);
+	font-size: var(--font-body-size);
+	line-height: var(--font-body-line);
+}
+
+.btn-lg {
+	min-height: 48px;
+	padding: var(--space-3) var(--space-4);
+	font-size: var(--font-body-size);
+	line-height: var(--font-body-line);
+	font-weight: 600;
+}
+
+/* === Variants === */
+.btn-primary {
+	background-color: var(--primary);
+	color: white;
+	box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover:not(:disabled) {
+	background-color: var(--primary-ink);
+	box-shadow: var(--shadow-md);
+	transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+	transform: translateY(0);
+}
+
+.btn-secondary {
+	background-color: var(--card);
+	color: var(--text);
+	border: 1px solid var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+	background-color: var(--bg);
+	border-color: var(--primary);
+}
+
+.btn-danger {
+	background-color: var(--card);
+	color: var(--danger);
+	border: 1px solid var(--danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+	background-color: #fef2f2;
+	border-color: #b91c1c;
+}
+
+.btn-ghost {
+	background-color: transparent;
+	color: var(--text);
+}
+
+.btn-ghost:hover:not(:disabled) {
+	background-color: var(--bg);
+}
+
+/* === Full Width === */
+.btn-full {
+	width: 100%;
+}
+
+/* ============================================
+   Card Component
+   ============================================ */
+
+@import '../design-tokens.css';
+
+.card {
+	background: var(--card);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-sm);
+	padding: var(--space-4);
+	border: 1px solid var(--border);
+}
+
+.card-elevated {
+	box-shadow: var(--shadow-md);
+}
+
+.card-header {
+	margin-bottom: var(--space-3);
+	padding-bottom: var(--space-3);
+	border-bottom: 1px solid var(--border);
+}
+
+.card-title {
+	font-size: var(--font-h2-size);
+	line-height: var(--font-h2-line);
+	font-weight: var(--font-h2-weight);
+	color: var(--text-strong);
+	margin: 0;
+}
+
+.card-body {
+	color: var(--text);
+}
+
+.card-footer {
+	margin-top: var(--space-3);
+	padding-top: var(--space-3);
+	border-top: 1px solid var(--border);
+}
+
+/* ============================================
+   Tabs Component (WAI-ARIA compliant)
+   ============================================ */
+
+@import '../design-tokens.css';
+
+.tabs-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.tabs-list {
+	display: flex;
+	gap: var(--space-1);
+	position: sticky;
+	top: 0;
+	z-index: 100;
+	background: var(--bg);
+	padding: var(--space-2) 0;
+	margin-bottom: var(--space-3);
+	border-bottom: 1px solid var(--border);
+}
+
+.tab-button {
+	flex: 1;
+	min-height: 44px;
+	padding: var(--space-2) var(--space-3);
+	font-family: var(--font-body);
+	font-size: var(--font-body-size);
+	font-weight: var(--font-caption-weight);
+	color: var(--text-muted);
+	background: transparent;
+	border: none;
+	border-bottom: 2px solid transparent;
+	border-radius: var(--radius) var(--radius) 0 0;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	position: relative;
+}
+
+.tab-button:hover:not([aria-selected="true"]) {
+	color: var(--text);
+	background: rgba(37, 99, 235, 0.05);
+}
+
+.tab-button[aria-selected="true"] {
+	color: var(--primary);
+	font-weight: 600;
+	border-bottom-color: var(--primary);
+	background: var(--card);
+}
+
+.tab-button:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: -2px;
+}
+
+.tab-panel {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.tab-panel[hidden] {
+	display: none;
+}
+
+/* === Keyboard Navigation === */
+.tab-button:focus {
+	z-index: 1;
+}
+
+/* ============================================
+   KPI Bar Component (for Rubric scores)
+   ============================================ */
+
+@import '../design-tokens.css';
+
+.kpi-bar-container {
+	margin-bottom: var(--space-4);
+}
+
+.kpi-bar-label {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: var(--space-2);
+	font-size: var(--font-body-size);
+	font-weight: var(--font-caption-weight);
+	color: var(--text-strong);
+}
+
+.kpi-bar-score {
+	font-weight: 600;
+	color: var(--text);
+}
+
+.kpi-bar-track {
+	width: 100%;
+	height: 8px;
+	background: var(--bg);
+	border-radius: 4px;
+	overflow: hidden;
+	margin-bottom: var(--space-2);
+}
+
+.kpi-bar-fill {
+	height: 100%;
+	background: linear-gradient(90deg, var(--primary) 0%, var(--primary-ink) 100%);
+	border-radius: 4px;
+	transition: width 0.3s ease;
+}
+
+.kpi-bar-reason {
+	font-size: var(--font-caption-size);
+	line-height: var(--font-caption-line);
+	color: var(--text);
+	background: color-mix(in srgb, var(--primary) 8%, transparent);
+	padding: var(--space-2) var(--space-3);
+	border-radius: calc(var(--radius) / 2);
+	border-left: 3px solid var(--primary);
+}
+
+/* ============================================
+   Sticky Footer Component
+   ============================================ */
+
+@import '../design-tokens.css';
+
+.sticky-footer {
+	position: sticky;
+	bottom: 0;
+	z-index: 50;
+	background: var(--bg);
+	padding: var(--space-3) 0;
+	margin-top: var(--space-3);
+	border-top: 1px solid var(--border);
+}
+
+.sticky-footer-content {
+	display: flex;
+	gap: var(--space-2);
+	align-items: center;
+}
+
+@media (max-width: 1024px) {
+	.sticky-footer {
+		bottom: env(safe-area-inset-bottom, 0);
+		padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0));
+	}
+}
+

@@ -1,0 +1,206 @@
+# ========================================
+# 教授コメント自動化ボット .gitignore
+# ========================================
+
+# === 環境変数・機密情報 ===
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# === Next.js（Frontend） ===
+# Dependencies
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+
+# Production
+frontend/out/
+frontend/build/
+frontend/dist/
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Testing
+frontend/coverage/
+
+# Misc
+frontend/.DS_Store
+frontend/*.pem
+
+# Debug
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Local env files
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Vercel
+frontend/.vercel
+
+# TypeScript
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+
+# === Python（Backend） ===
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+backend/.venv/
+backend/venv/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# === Logs ===
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+backend/logs/
+
+# === IDE ===
+# VSCode
+.vscode/
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# === OS ===
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+
+# === Temporary files ===
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# === Database ===
+*.db
+*.sqlite
+*.sqlite3
+
+# === Supabase（ローカル開発用） ===
+.supabase/
+
+# === その他 ===
+# 開発用メモ
+TODO.md
+NOTES.md
+
+# エクスポートされたデータ（機密情報の可能性）
+exports/
+*.csv
+*.json
+!data/sample_comments.json
+!package.json
+!package-lock.json
+!tsconfig.json
+
+# ビルド成果物
+*.map
+
+# キャッシュ
+.cache/
+.parcel-cache/
+
+# === 既存実装（Streamlit - 残す場合）===
+# Streamlitキャッシュ
+.streamlit/

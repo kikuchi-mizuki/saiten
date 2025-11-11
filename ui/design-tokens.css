@@ -1,0 +1,73 @@
+/* ========================================
+   Design Tokens - Academic Minimal (Refined)
+   ======================================== */
+
+:root {
+  /* === Colors === */
+  --bg: #F9FAFB;
+  --surface: #FFFFFF;
+  --surface-subtle: #FAFBFC;
+  --border: #E2E5EB;
+  --text: #111827;
+  --text-muted: #374151;
+  --text-muted-light: #9CA3AF;
+  --accent: #2563EB;
+  --accent-hover: #1E3A8A;
+  --accent-hover-darker: #1B357F;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  
+  /* === Shadows === */
+  --shadow: none;
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.08);
+  
+  /* === Border Radius === */
+  --radius: 12px;
+  --radius-sm: 6px;
+  
+  /* === Spacing === */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  
+  /* === 8px Grid System === */
+  --g1: 8px;
+  --g2: 16px;
+  --g3: 24px;
+  --g4: 32px;
+  
+  /* === Typography === */
+  --font-body: 'Noto Sans JP', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  
+  /* === Typography Scale === */
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-lg: 20px;
+  --font-size-xl: 24px;
+  
+  --line-height-tight: 1.4;
+  --line-height-base: 1.7;
+  --line-height-relaxed: 1.8;
+  
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* === Measure (optimal reading width) === */
+  --measure: 66ch;
+  
+  /* === Layout === */
+  --header-height: 80px;
+  --footer-height: 80px;
+  --viewport-offset: calc(var(--header-height) + var(--footer-height));
+  
+  /* === Transitions === */
+  --transition: 0.15s ease;
+}

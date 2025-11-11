@@ -1,0 +1,43 @@
+/* ========================================
+   Card Component
+   ======================================== */
+
+.commercial-card {
+  background-color: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  transition: box-shadow var(--transition-base);
+}
+
+.commercial-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.commercial-card-header {
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.commercial-card-title {
+  font-size: var(--font-h2-size);
+  line-height: var(--font-h2-line);
+  font-weight: var(--font-h2-weight);
+  color: var(--text-strong);
+  margin: 0;
+}
+
+.commercial-card-body {
+  color: var(--text);
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line);
+}
+
+.commercial-card-footer {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
