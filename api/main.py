@@ -996,6 +996,21 @@ async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt
 	}
 
 
+@app.get("/")
+async def root():
+	return {
+		"message": "教授コメント自動化Bot API (MVP)",
+		"version": "1.0.0",
+		"status": "running",
+		"endpoints": {
+			"health": "/health",
+			"generate": "/generate_direct",
+			"stats": "/stats",
+			"references": "/references"
+		}
+	}
+
+
 @app.get("/health")
 async def health():
 	return {"ok": True}
