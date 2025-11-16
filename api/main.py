@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Tuple
 import json
@@ -6,6 +8,11 @@ import pathlib
 import re
 import os
 import requests
+import jwt
+import base64
+import hashlib
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from supabase import create_client, Client
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SAMPLE_PATH = ROOT / "data" / "sample_comments.json"
@@ -28,7 +35,187 @@ def _load_local_env():
 
 _load_local_env()
 
+# Supabase client初期化
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
+
+supabase: Optional[Client] = None
+if SUPABASE_URL and SUPABASE_ANON_KEY:
+	supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+# JWT認証設定
+security = HTTPBearer()
+
+# 暗号化キー設定
+ENCRYPTION_KEY_STR = os.environ.get("ENCRYPTION_KEY", "")
+
 app = FastAPI(title="教授コメント自動化Bot API (MVP)")
+
+# CORS設定 - Next.jsフロントエンドからのリクエストを許可
+# 環境変数で許可ドメインを設定可能（本番環境対応）
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "").split(",") if os.environ.get("ALLOWED_ORIGINS") else []
+default_origins = [
+	"http://localhost:3000",
+	"http://localhost:3001",
+	"http://127.0.0.1:3000",
+	"http://127.0.0.1:3001",
+]
+allowed_origins = default_origins + [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
+
+app.add_middleware(
+	CORSMiddleware,
+	allow_origins=allowed_origins,
+	allow_credentials=True,
+	allow_methods=["*"],
+	allow_headers=["*"],
+)
+
+
+# ===========================================
+# データ暗号化・復号化機能
+# ===========================================
+
+class DataEncryption:
+	"""AES-256-GCM によるデータ暗号化・復号化クラス"""
+
+	def __init__(self, key_str: str):
+		"""
+		Args:
+			key_str: 暗号化キー文字列（SHA-256でハッシュ化して32バイト鍵を生成）
+		"""
+		if not key_str:
+			raise ValueError("Encryption key is not set")
+
+		# キー文字列をSHA-256でハッシュ化して32バイトの鍵を生成
+		self.key = hashlib.sha256(key_str.encode()).digest()
+		self.aesgcm = AESGCM(self.key)
+
+	def encrypt(self, plaintext: str) -> str:
+		"""
+		テキストを暗号化
+
+		Args:
+			plaintext: 暗号化する平文
+
+		Returns:
+			base64エンコードされた暗号文（nonce + ciphertext形式）
+		"""
+		if not plaintext:
+			return ""
+
+		# 12バイトのnonceを生成（GCMモードの推奨サイズ）
+		nonce = os.urandom(12)
+
+		# 暗号化
+		plaintext_bytes = plaintext.encode('utf-8')
+		ciphertext = self.aesgcm.encrypt(nonce, plaintext_bytes, None)
+
+		# nonce + ciphertext を結合してbase64エンコード
+		encrypted_data = nonce + ciphertext
+		return base64.b64encode(encrypted_data).decode('utf-8')
+
+	def decrypt(self, encrypted_str: str) -> str:
+		"""
+		暗号文を復号化
+
+		Args:
+			encrypted_str: base64エンコードされた暗号文
+
+		Returns:
+			復号化された平文
+		"""
+		if not encrypted_str:
+			return ""
+
+		try:
+			# base64デコード
+			encrypted_data = base64.b64decode(encrypted_str)
+
+			# nonce（最初の12バイト）とciphertextを分離
+			nonce = encrypted_data[:12]
+			ciphertext = encrypted_data[12:]
+
+			# 復号化
+			plaintext_bytes = self.aesgcm.decrypt(nonce, ciphertext, None)
+			return plaintext_bytes.decode('utf-8')
+
+		except Exception as e:
+			raise ValueError(f"Decryption failed: {str(e)}")
+
+
+# 暗号化インスタンスを初期化
+encryption: Optional[DataEncryption] = None
+if ENCRYPTION_KEY_STR:
+	try:
+		encryption = DataEncryption(ENCRYPTION_KEY_STR)
+	except Exception as e:
+		print(f"Warning: Failed to initialize encryption: {e}")
+
+
+# ===========================================
+# JWT認証ミドルウェア
+# ===========================================
+
+async def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+	"""
+	JWT検証を行い、ユーザー情報を返す
+	検証失敗時は401エラーを返す
+	"""
+	token = credentials.credentials
+
+	# JWT検証を無効化する環境変数（開発用）
+	if os.environ.get("DISABLE_AUTH", "0") == "1":
+		return {"user_id": "dev-user", "email": "dev@example.com"}
+
+	try:
+		# Supabaseが設定されていない場合はエラー
+		if not SUPABASE_URL or not SUPABASE_JWT_SECRET:
+			raise HTTPException(
+				status_code=500,
+				detail="Supabase configuration is missing"
+			)
+
+		# JWTをデコード・検証
+		payload = jwt.decode(
+			token,
+			SUPABASE_JWT_SECRET,
+			algorithms=["HS256"],
+			audience="authenticated",
+			options={"verify_exp": True}
+		)
+
+		# ユーザーIDを取得
+		user_id = payload.get("sub")
+		email = payload.get("email")
+
+		if not user_id:
+			raise HTTPException(
+				status_code=401,
+				detail="Invalid token: user_id not found"
+			)
+
+		return {
+			"user_id": user_id,
+			"email": email,
+			"payload": payload
+		}
+
+	except jwt.ExpiredSignatureError:
+		raise HTTPException(
+			status_code=401,
+			detail="Token has expired"
+		)
+	except jwt.InvalidTokenError as e:
+		raise HTTPException(
+			status_code=401,
+			detail=f"Invalid token: {str(e)}"
+		)
+	except Exception as e:
+		raise HTTPException(
+			status_code=401,
+			detail=f"Authentication failed: {str(e)}"
+		)
 
 
 class GenerateOptions(BaseModel):
@@ -56,11 +243,183 @@ class DirectGenRequest(BaseModel):
 	type: Optional[str] = "reflection"
 
 
+# 参照例管理用のモデル
+class ReferenceExample(BaseModel):
+	id: str
+	type: str  # 'reflection' | 'final'
+	text: str
+	tags: List[str]
+	source: str
+
+
+class ReferenceCreateRequest(BaseModel):
+	type: str  # 'reflection' | 'final'
+	text: str
+	tags: List[str]
+	source: Optional[str] = "professor_custom"
+
+
+class ReferenceUpdateRequest(BaseModel):
+	type: Optional[str] = None
+	text: Optional[str] = None
+	tags: Optional[List[str]] = None
+	source: Optional[str] = None
+
+
+class CSVImportRequest(BaseModel):
+	csv_data: str  # CSV文字列
+
+
+# ===========================================
+# PII検出・マスキング機能
+# ===========================================
+
+class PIIMatch(BaseModel):
+	"""PII検出結果"""
+	type: str  # 'name', 'student_id', 'email', 'phone'
+	text: str
+	start: int
+	end: int
+
+
+class PIIDetector:
+	"""個人情報検出・マスキングクラス"""
+
+	def __init__(self):
+		# 日本語氏名パターン（姓・名の組み合わせ）
+		self.name_pattern = re.compile(
+			r'[一-龯ぁ-んァ-ヶ]{1,5}\s*[一-龯ぁ-んァ-ヶ]{1,5}'
+		)
+
+		# 学籍番号パターン（数字・英数字の組み合わせ）
+		self.student_id_pattern = re.compile(
+			r'\b[A-Z]?\d{5,10}\b'
+		)
+
+		# メールアドレスパターン
+		self.email_pattern = re.compile(
+			r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+		)
+
+		# 電話番号パターン（ハイフン有無両対応）
+		self.phone_pattern = re.compile(
+			r'\b0\d{1,4}[-\s]?\d{1,4}[-\s]?\d{4}\b'
+		)
+
+	def detect(self, text: str) -> List[PIIMatch]:
+		"""PIIを検出"""
+		matches = []
+
+		# メールアドレス検出（優先度高）
+		for match in self.email_pattern.finditer(text):
+			matches.append(PIIMatch(
+				type='email',
+				text=match.group(),
+				start=match.start(),
+				end=match.end()
+			))
+
+		# 電話番号検出
+		for match in self.phone_pattern.finditer(text):
+			matches.append(PIIMatch(
+				type='phone',
+				text=match.group(),
+				start=match.start(),
+				end=match.end()
+			))
+
+		# 学籍番号検出
+		for match in self.student_id_pattern.finditer(text):
+			# メールアドレスや電話番号と重複しないかチェック
+			overlap = any(
+				m.start <= match.start() < m.end or m.start < match.end() <= m.end
+				for m in matches
+			)
+			if not overlap:
+				matches.append(PIIMatch(
+					type='student_id',
+					text=match.group(),
+					start=match.start(),
+					end=match.end()
+				))
+
+		# 氏名検出（優先度低、他と重複しない場合のみ）
+		for match in self.name_pattern.finditer(text):
+			# 他のPIIと重複しないかチェック
+			overlap = any(
+				m.start <= match.start() < m.end or m.start < match.end() <= m.end
+				for m in matches
+			)
+			if not overlap:
+				# 一般的な単語を除外（簡易版）
+				if match.group() not in ['私は', '自分', '学生', '教授', '先生']:
+					matches.append(PIIMatch(
+						type='name',
+						text=match.group(),
+						start=match.start(),
+						end=match.end()
+					))
+
+		# 位置順にソート
+		matches.sort(key=lambda m: m.start)
+		return matches
+
+	def mask(self, text: str, matches: List[PIIMatch]) -> str:
+		"""PIIをマスキング"""
+		if not matches:
+			return text
+
+		# 後ろから置換（インデックスがずれないように）
+		result = text
+		for match in reversed(matches):
+			mask_text = {
+				'name': '[氏名]',
+				'student_id': '[学籍番号]',
+				'email': '[メールアドレス]',
+				'phone': '[電話番号]',
+			}.get(match.type, '[個人情報]')
+
+			result = result[:match.start] + mask_text + result[match.end:]
+
+		return result
+
+	def detect_and_mask(self, text: str) -> Tuple[str, List[Dict]]:
+		"""PII検出とマスキングを一括実行
+		Returns: (masked_text, detected_pii_list)
+		"""
+		matches = self.detect(text)
+		masked_text = self.mask(text, matches)
+
+		# 検出結果をDictに変換
+		detected_pii = [
+			{
+				'type': m.type,
+				'text': m.text,
+				'start': m.start,
+				'end': m.end
+			}
+			for m in matches
+		]
+
+		return masked_text, detected_pii
+
+
 def load_samples() -> List[Dict]:
 	try:
 		return json.loads(SAMPLE_PATH.read_text(encoding="utf-8"))
 	except Exception:
 		return []
+
+
+def save_samples(samples: List[Dict]) -> None:
+	"""参照例をJSONファイルに保存"""
+	try:
+		SAMPLE_PATH.write_text(
+			json.dumps(samples, ensure_ascii=False, indent=2),
+			encoding="utf-8"
+		)
+	except Exception as e:
+		raise Exception(f"参照例の保存に失敗しました: {str(e)}")
 
 
 def tokenize(s: str) -> List[str]:
@@ -555,16 +914,22 @@ def call_openai(prompt: str, max_tokens: int = 500, system_message: str = None) 
 
 
 @app.post("/generate", response_model=GenerateResponse)
-async def generate(req: GenerateRequest) -> GenerateResponse:
+async def generate(req: GenerateRequest, user: dict = Depends(verify_jwt)) -> GenerateResponse:
 	return build_comment(req)
 
 
 # 直接生成エンドポイント
 @app.post("/generate_direct")
-async def generate_direct(req: DirectGenRequest):
+async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt)):
 	doc_type = (req.type or "reflection")
-	refs = retrieve_refs(req.text, doc_type, k=2)
-	scores = simple_score(req.text)
+
+	# 1. PII検出・マスキング
+	pii_detector = PIIDetector()
+	masked_text, detected_pii = pii_detector.detect_and_mask(req.text)
+
+	# 2. マスキング後のテキストで処理を実行
+	refs = retrieve_refs(masked_text, doc_type, k=2)
+	scores = simple_score(masked_text)
 	llm_used = False
 	llm_error = None
 	draft = None
@@ -595,13 +960,14 @@ async def generate_direct(req: DirectGenRequest):
 
 重要：参照例の平均文字数は約{int(avg_length)}文字です。必ずこの分量に合わせて、同じくらいの文量で生成してください。"""
 	
+	# 3. コメント生成（マスキング後のテキストを使用）
 	if USE_LLM and os.environ.get("OPENAI_API_KEY"):
-		prompt = build_llm_prompt(req.text, doc_type, refs, scores)
+		prompt = build_llm_prompt(masked_text, doc_type, refs, scores)
 		draft, llm_error = call_openai(prompt, max_tokens=max_tokens, system_message=system_message)
 		llm_used = draft is not None and llm_error is None
 	if not draft:
 		if doc_type == "reflection":
-			draft = generate_reflection_draft(req.text, refs, scores)
+			draft = generate_reflection_draft(masked_text, refs, scores)
 		else:
 			draft = "\n".join([
 				"全体評価: 学びの接続と仮説の筋が見られます。",
@@ -609,10 +975,10 @@ async def generate_direct(req: DirectGenRequest):
 				"改善: 指標・撤退基準の明確化。",
 				"総括: あり方に立脚し、次の一歩を具体化しましょう。",
 			])
-	
-	# 要約生成（常にLLM使用）
-	summary, summary_llm_used, summary_error = generate_summary(req.text)
-	
+
+	# 4. 要約生成（常にLLM使用、マスキング後のテキストを使用）
+	summary, summary_llm_used, summary_error = generate_summary(masked_text)
+
 	return {
 		"report_id": None,
 		"feedback_id": None,
@@ -624,9 +990,326 @@ async def generate_direct(req: DirectGenRequest):
 		"llm_error": llm_error,
 		"summary_llm_used": summary_llm_used,  # 要約生成でLLMが使われたか
 		"summary_error": summary_error,  # 要約生成のエラーメッセージ（あれば）
+		"masked_text": masked_text,  # マスキング後のテキスト
+		"detected_pii": detected_pii,  # 検出されたPII情報
+		"pii_count": len(detected_pii),  # 検出されたPII数
 	}
 
 
 @app.get("/health")
 async def health():
 	return {"ok": True}
+
+
+# ===========================================
+# 暗号化・復号化エンドポイント
+# ===========================================
+
+class EncryptRequest(BaseModel):
+	text: str
+
+
+class EncryptResponse(BaseModel):
+	encrypted_text: str
+
+
+class DecryptRequest(BaseModel):
+	encrypted_text: str
+
+
+class DecryptResponse(BaseModel):
+	text: str
+
+
+@app.post("/encrypt", response_model=EncryptResponse)
+async def encrypt_text(req: EncryptRequest, user: dict = Depends(verify_jwt)) -> EncryptResponse:
+	"""テキストを暗号化"""
+	if not encryption:
+		raise HTTPException(status_code=500, detail="Encryption is not configured")
+
+	try:
+		encrypted = encryption.encrypt(req.text)
+		return EncryptResponse(encrypted_text=encrypted)
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Encryption failed: {str(e)}")
+
+
+@app.post("/decrypt", response_model=DecryptResponse)
+async def decrypt_text(req: DecryptRequest, user: dict = Depends(verify_jwt)) -> DecryptResponse:
+	"""暗号文を復号化"""
+	if not encryption:
+		raise HTTPException(status_code=500, detail="Encryption is not configured")
+
+	try:
+		decrypted = encryption.decrypt(req.encrypted_text)
+		return DecryptResponse(text=decrypted)
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Decryption failed: {str(e)}")
+
+
+# ===========================================
+# 統計情報エンドポイント
+# ===========================================
+
+class StatsResponse(BaseModel):
+	total_feedbacks: int
+	avg_rubric_scores: Dict[str, float]
+	avg_edit_time_seconds: Optional[float]
+	avg_satisfaction_score: Optional[float]
+
+
+@app.get("/stats", response_model=StatsResponse)
+async def get_stats(user: dict = Depends(verify_jwt)) -> StatsResponse:
+	"""ユーザーの統計情報を取得"""
+	if not supabase:
+		raise HTTPException(status_code=500, detail="Supabase is not configured")
+
+	user_id = user["user_id"]
+
+	try:
+		# feedbacks テーブルから統計情報を取得
+		response = supabase.table("feedbacks")\
+			.select("rubric, edit_time_seconds, satisfaction_score")\
+			.eq("user_id", user_id)\
+			.execute()
+
+		feedbacks = response.data
+
+		if not feedbacks or len(feedbacks) == 0:
+			# データがない場合はゼロ値を返す
+			return StatsResponse(
+				total_feedbacks=0,
+				avg_rubric_scores={
+					"理解度": 0.0,
+					"論理性": 0.0,
+					"独自性": 0.0,
+					"実践性": 0.0,
+					"表現力": 0.0,
+				},
+				avg_edit_time_seconds=None,
+				avg_satisfaction_score=None,
+			)
+
+		# 総数
+		total_feedbacks = len(feedbacks)
+
+		# Rubric平均点数を計算
+		rubric_sums = {
+			"理解度": 0.0,
+			"論理性": 0.0,
+			"独自性": 0.0,
+			"実践性": 0.0,
+			"表現力": 0.0,
+		}
+		rubric_counts = {
+			"理解度": 0,
+			"論理性": 0,
+			"独自性": 0,
+			"実践性": 0,
+			"表現力": 0,
+		}
+
+		edit_time_sum = 0
+		edit_time_count = 0
+		satisfaction_sum = 0
+		satisfaction_count = 0
+
+		for feedback in feedbacks:
+			# Rubricスコアを集計
+			rubric = feedback.get("rubric", {})
+			for category in ["理解度", "論理性", "独自性", "実践性", "表現力"]:
+				if category in rubric:
+					rubric_item = rubric[category]
+					if isinstance(rubric_item, dict) and "score" in rubric_item:
+						score = rubric_item["score"]
+						rubric_sums[category] += score
+						rubric_counts[category] += 1
+
+			# 手直し時間を集計
+			edit_time = feedback.get("edit_time_seconds")
+			if edit_time is not None:
+				edit_time_sum += edit_time
+				edit_time_count += 1
+
+			# 満足度を集計
+			satisfaction = feedback.get("satisfaction_score")
+			if satisfaction is not None:
+				satisfaction_sum += satisfaction
+				satisfaction_count += 1
+
+		# 平均を計算
+		avg_rubric_scores = {}
+		for category in ["理解度", "論理性", "独自性", "実践性", "表現力"]:
+			if rubric_counts[category] > 0:
+				avg_rubric_scores[category] = round(rubric_sums[category] / rubric_counts[category], 2)
+			else:
+				avg_rubric_scores[category] = 0.0
+
+		avg_edit_time = round(edit_time_sum / edit_time_count, 2) if edit_time_count > 0 else None
+		avg_satisfaction = round(satisfaction_sum / satisfaction_count, 2) if satisfaction_count > 0 else None
+
+		return StatsResponse(
+			total_feedbacks=total_feedbacks,
+			avg_rubric_scores=avg_rubric_scores,
+			avg_edit_time_seconds=avg_edit_time,
+			avg_satisfaction_score=avg_satisfaction,
+		)
+
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Failed to fetch stats: {str(e)}")
+
+
+# ===========================================
+# 参照例管理エンドポイント
+# ===========================================
+
+@app.get("/references")
+async def get_references(user: dict = Depends(verify_jwt)):
+	"""全ての参照例を取得"""
+	samples = load_samples()
+	return {"references": samples, "count": len(samples)}
+
+
+@app.get("/references/{reference_id}")
+async def get_reference(reference_id: str, user: dict = Depends(verify_jwt)):
+	"""特定の参照例を取得"""
+	samples = load_samples()
+	reference = next((s for s in samples if s.get("id") == reference_id), None)
+	if not reference:
+		return {"error": "参照例が見つかりません"}, 404
+	return reference
+
+
+@app.post("/references")
+async def create_reference(req: ReferenceCreateRequest, user: dict = Depends(verify_jwt)):
+	"""新しい参照例を作成"""
+	samples = load_samples()
+
+	# 新しいIDを生成（prof_custom_XXXX形式）
+	custom_ids = [s.get("id", "") for s in samples if s.get("id", "").startswith("prof_custom_")]
+	if custom_ids:
+		# 既存のカスタムIDから最大の番号を取得
+		max_num = max([int(id.split("_")[-1]) for id in custom_ids if id.split("_")[-1].isdigit()], default=0)
+		new_id = f"prof_custom_{max_num + 1:04d}"
+	else:
+		new_id = "prof_custom_0001"
+
+	# 新しい参照例を追加
+	new_reference = {
+		"id": new_id,
+		"type": req.type,
+		"text": req.text,
+		"tags": req.tags,
+		"source": req.source or "professor_custom"
+	}
+
+	samples.append(new_reference)
+	save_samples(samples)
+
+	return {"success": True, "reference": new_reference}
+
+
+@app.put("/references/{reference_id}")
+async def update_reference(reference_id: str, req: ReferenceUpdateRequest, user: dict = Depends(verify_jwt)):
+	"""参照例を更新"""
+	samples = load_samples()
+	reference = next((s for s in samples if s.get("id") == reference_id), None)
+
+	if not reference:
+		return {"error": "参照例が見つかりません"}, 404
+
+	# 更新（指定されたフィールドのみ）
+	if req.type is not None:
+		reference["type"] = req.type
+	if req.text is not None:
+		reference["text"] = req.text
+	if req.tags is not None:
+		reference["tags"] = req.tags
+	if req.source is not None:
+		reference["source"] = req.source
+
+	save_samples(samples)
+
+	return {"success": True, "reference": reference}
+
+
+@app.delete("/references/{reference_id}")
+async def delete_reference(reference_id: str, user: dict = Depends(verify_jwt)):
+	"""参照例を削除"""
+	samples = load_samples()
+	original_count = len(samples)
+	samples = [s for s in samples if s.get("id") != reference_id]
+
+	if len(samples) == original_count:
+		return {"error": "参照例が見つかりません"}, 404
+
+	save_samples(samples)
+
+	return {"success": True, "message": "参照例を削除しました"}
+
+
+@app.post("/references/import-csv")
+async def import_csv(req: CSVImportRequest, user: dict = Depends(verify_jwt)):
+	"""CSV形式で参照例を一括インポート
+
+	CSV形式:
+	type,text,tags,source
+	reflection,"コメント本文","タグ1,タグ2",professor_custom
+	"""
+	import csv
+	import io
+
+	samples = load_samples()
+	imported_count = 0
+	errors = []
+
+	try:
+		# CSVを解析
+		csv_reader = csv.DictReader(io.StringIO(req.csv_data))
+
+		for i, row in enumerate(csv_reader, start=1):
+			try:
+				# 必須フィールドをチェック
+				if not row.get("type") or not row.get("text"):
+					errors.append(f"行{i}: typeとtextは必須です")
+					continue
+
+				# tagsを配列に変換
+				tags_str = row.get("tags", "")
+				tags = [t.strip() for t in tags_str.split(",") if t.strip()]
+
+				# 新しいIDを生成
+				custom_ids = [s.get("id", "") for s in samples if s.get("id", "").startswith("prof_custom_")]
+				if custom_ids:
+					max_num = max([int(id.split("_")[-1]) for id in custom_ids if id.split("_")[-1].isdigit()], default=0)
+					new_id = f"prof_custom_{max_num + 1 + imported_count:04d}"
+				else:
+					new_id = f"prof_custom_{imported_count + 1:04d}"
+
+				# 新しい参照例を追加
+				new_reference = {
+					"id": new_id,
+					"type": row["type"],
+					"text": row["text"],
+					"tags": tags,
+					"source": row.get("source", "professor_custom")
+				}
+
+				samples.append(new_reference)
+				imported_count += 1
+
+			except Exception as e:
+				errors.append(f"行{i}: {str(e)}")
+
+		# 保存
+		if imported_count > 0:
+			save_samples(samples)
+
+		return {
+			"success": True,
+			"imported_count": imported_count,
+			"errors": errors if errors else None
+		}
+
+	except Exception as e:
+		return {"error": f"CSV解析エラー: {str(e)}"}, 400
