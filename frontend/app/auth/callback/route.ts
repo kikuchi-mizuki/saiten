@@ -30,5 +30,7 @@ export async function GET(request: Request) {
   }
 
   // 認証成功後はダッシュボードにリダイレクト
-  return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
+  // 本番環境のURLを環境変数から取得、またはリクエストURLから取得
+  const origin = process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin
+  return NextResponse.redirect(new URL('/dashboard', origin))
 }
