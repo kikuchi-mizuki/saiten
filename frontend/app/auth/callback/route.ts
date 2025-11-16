@@ -12,6 +12,12 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
 
+  // 本番環境のホストを取得（X-Forwarded-Hostヘッダーを優先）
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const protocol = request.headers.get('x-forwarded-proto') || 'https'
+  const host = forwardedHost || requestUrl.host
+  const origin = `${protocol}://${host}`
+
   if (code) {
     // Supabaseクライアントを作成
     const supabase = createClient(
@@ -25,12 +31,10 @@ export async function GET(request: Request) {
     if (error) {
       console.error('Auth callback error:', error)
       // エラー時はログインページにリダイレクト
-      return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin))
+      return NextResponse.redirect(new URL('/login?error=auth_failed', origin))
     }
   }
 
   // 認証成功後はダッシュボードにリダイレクト
-  // 本番環境のURLを環境変数から取得、またはリクエストURLから取得
-  const origin = process.env.NEXT_PUBLIC_APP_URL || requestUrl.origin
   return NextResponse.redirect(new URL('/dashboard', origin))
 }
