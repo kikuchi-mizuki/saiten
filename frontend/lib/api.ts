@@ -6,10 +6,8 @@
 import { getAccessToken } from './auth'
 
 // 本番環境では必ずRailwayのURLを使用
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-  || (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? 'https://saiten-production.up.railway.app'
-    : 'http://127.0.0.1:8010')
+// 環境変数が設定されていない場合は本番URLをフォールバック
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://saiten-production.up.railway.app'
 
 /**
  * 認証ヘッダーを含むヘッダーを取得
