@@ -444,14 +444,21 @@ def load_samples() -> List[Dict]:
 
 
 def save_samples(samples: List[Dict]) -> None:
-	"""参照例をJSONファイルに保存"""
+	"""
+	参照例を保存（非推奨：後方互換性のため残す）
+
+	注意: Railwayなどのクラウド環境ではファイル書き込みができないため、
+	      Supabaseへの直接保存を推奨します。
+	"""
 	try:
-		SAMPLE_PATH.write_text(
-			json.dumps(samples, ensure_ascii=False, indent=2),
-			encoding="utf-8"
-		)
+		if SAMPLE_PATH.exists():
+			SAMPLE_PATH.write_text(
+				json.dumps(samples, ensure_ascii=False, indent=2),
+				encoding="utf-8"
+			)
 	except Exception as e:
-		raise Exception(f"参照例の保存に失敗しました: {str(e)}")
+		print(f"警告: ローカルファイルへの保存に失敗しました: {e}")
+		# ファイル書き込みに失敗してもエラーにしない（クラウド環境対応）
 
 
 def tokenize(s: str) -> List[str]:
@@ -1230,69 +1237,111 @@ async def get_reference(reference_id: str, user: dict = Depends(verify_jwt)):
 @app.post("/references")
 async def create_reference(req: ReferenceCreateRequest, user: dict = Depends(verify_jwt)):
 	"""新しい参照例を作成"""
-	samples = load_samples()
+	if not supabase:
+		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
 
-	# 新しいIDを生成（prof_custom_XXXX形式）
-	custom_ids = [s.get("id", "") for s in samples if s.get("id", "").startswith("prof_custom_")]
-	if custom_ids:
-		# 既存のカスタムIDから最大の番号を取得
-		max_num = max([int(id.split("_")[-1]) for id in custom_ids if id.split("_")[-1].isdigit()], default=0)
-		new_id = f"prof_custom_{max_num + 1:04d}"
-	else:
-		new_id = "prof_custom_0001"
+	try:
+		# 新しいIDを生成（prof_custom_XXXX形式）
+		response = supabase.table("knowledge_base").select("reference_id").like("reference_id", "prof_custom_%").execute()
+		custom_ids = [item["reference_id"] for item in response.data]
 
-	# 新しい参照例を追加
-	new_reference = {
-		"id": new_id,
-		"type": req.type,
-		"text": req.text,
-		"tags": req.tags,
-		"source": req.source or "professor_custom"
-	}
+		if custom_ids:
+			# 既存のカスタムIDから最大の番号を取得
+			max_num = max([int(id.split("_")[-1]) for id in custom_ids if id.split("_")[-1].isdigit()], default=0)
+			new_id = f"prof_custom_{max_num + 1:04d}"
+		else:
+			new_id = "prof_custom_0001"
 
-	samples.append(new_reference)
-	save_samples(samples)
+		# Supabaseに新しい参照例を挿入
+		data = {
+			"reference_id": new_id,
+			"type": req.type,
+			"text": req.text,
+			"tags": req.tags,
+			"source": req.source or "professor_custom"
+		}
 
-	return {"success": True, "reference": new_reference}
+		insert_response = supabase.table("knowledge_base").insert(data).execute()
+
+		# レスポンス形式を統一
+		new_reference = {
+			"id": new_id,
+			"type": req.type,
+			"text": req.text,
+			"tags": req.tags,
+			"source": req.source or "professor_custom"
+		}
+
+		return {"success": True, "reference": new_reference}
+
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"参照例の作成に失敗しました: {str(e)}")
 
 
 @app.put("/references/{reference_id}")
 async def update_reference(reference_id: str, req: ReferenceUpdateRequest, user: dict = Depends(verify_jwt)):
 	"""参照例を更新"""
-	samples = load_samples()
-	reference = next((s for s in samples if s.get("id") == reference_id), None)
+	if not supabase:
+		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
 
-	if not reference:
-		return {"error": "参照例が見つかりません"}, 404
+	try:
+		# 更新データを準備（指定されたフィールドのみ）
+		update_data = {}
+		if req.type is not None:
+			update_data["type"] = req.type
+		if req.text is not None:
+			update_data["text"] = req.text
+		if req.tags is not None:
+			update_data["tags"] = req.tags
+		if req.source is not None:
+			update_data["source"] = req.source
 
-	# 更新（指定されたフィールドのみ）
-	if req.type is not None:
-		reference["type"] = req.type
-	if req.text is not None:
-		reference["text"] = req.text
-	if req.tags is not None:
-		reference["tags"] = req.tags
-	if req.source is not None:
-		reference["source"] = req.source
+		if not update_data:
+			raise HTTPException(status_code=400, detail="更新するデータがありません")
 
-	save_samples(samples)
+		# Supabaseで更新
+		response = supabase.table("knowledge_base").update(update_data).eq("reference_id", reference_id).execute()
 
-	return {"success": True, "reference": reference}
+		if not response.data:
+			raise HTTPException(status_code=404, detail="参照例が見つかりません")
+
+		# 更新後のデータを取得
+		updated = response.data[0]
+		reference = {
+			"id": updated["reference_id"],
+			"type": updated["type"],
+			"text": updated["text"],
+			"tags": updated.get("tags", []),
+			"source": updated.get("source", "")
+		}
+
+		return {"success": True, "reference": reference}
+
+	except HTTPException:
+		raise
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"参照例の更新に失敗しました: {str(e)}")
 
 
 @app.delete("/references/{reference_id}")
 async def delete_reference(reference_id: str, user: dict = Depends(verify_jwt)):
 	"""参照例を削除"""
-	samples = load_samples()
-	original_count = len(samples)
-	samples = [s for s in samples if s.get("id") != reference_id]
+	if not supabase:
+		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
 
-	if len(samples) == original_count:
-		return {"error": "参照例が見つかりません"}, 404
+	try:
+		# Supabaseから削除
+		response = supabase.table("knowledge_base").delete().eq("reference_id", reference_id).execute()
 
-	save_samples(samples)
+		if not response.data:
+			raise HTTPException(status_code=404, detail="参照例が見つかりません")
 
-	return {"success": True, "message": "参照例を削除しました"}
+		return {"success": True, "message": "参照例を削除しました"}
+
+	except HTTPException:
+		raise
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"参照例の削除に失敗しました: {str(e)}")
 
 
 @app.post("/references/import-csv")
