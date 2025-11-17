@@ -1,5 +1,6 @@
 /**
  * バックエンドAPI呼び出し関数
+ * Updated: 2025-11-17 - Force rebuild for Railway deployment
  */
 
 import { getAccessToken } from './auth'
