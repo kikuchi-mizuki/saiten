@@ -1055,6 +1055,17 @@ async def health():
 	return {"ok": True}
 
 
+@app.get("/debug/env")
+async def debug_env():
+	"""デバッグ用: 環境変数の確認"""
+	return {
+		"DISABLE_AUTH": os.environ.get("DISABLE_AUTH", "not set"),
+		"SUPABASE_URL_set": bool(os.environ.get("SUPABASE_URL")),
+		"OPENAI_API_KEY_set": bool(os.environ.get("OPENAI_API_KEY")),
+		"supabase_connected": supabase is not None
+	}
+
+
 # ===========================================
 # 暗号化・復号化エンドポイント
 # ===========================================
