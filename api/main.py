@@ -164,7 +164,7 @@ async def verify_jwt(credentials: Optional[HTTPAuthorizationCredentials] = Depen
 	"""
 	# JWT検証を無効化する環境変数（開発用）
 	if os.environ.get("DISABLE_AUTH", "0") == "1":
-		return {"user_id": "dev-user", "email": "dev@example.com"}
+		return {"user_id": "00000000-0000-0000-0000-000000000000", "email": "dev@example.com"}
 
 	# 認証が有効な場合、credentialsが必須
 	if not credentials:
