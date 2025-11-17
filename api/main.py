@@ -847,51 +847,17 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 
 def build_llm_prompt(text: str, doc_type: str, refs: List[str], scores: Dict[str, any]) -> str:
 	base = load_prompt("reflection" if doc_type == "reflection" else "final")
-	
-	# 参照例の文字数を分析して、平均文字数を計算
-	ref_lengths = []
+
+	# 参照例を整形
 	refs_text_list = []
-	ref_details = []  # 各参照例の詳細情報（文字数を含む）
-	
 	for i, ref in enumerate(refs, 1):
 		if ref:
 			# JSONのエスケープされた改行文字（\\n）を実際の改行に変換
 			ref_normalized = ref.replace("\\n", "\n")
-			# 改行と空白を除いた実際の文字数をカウント（日本語文字数を正確に測定）
-			ref_clean = ref_normalized.replace("\n", "").replace(" ", "").replace("\t", "").replace("\\n", "")
-			ref_length = len(ref_clean)
-			ref_lengths.append(ref_length)
 			refs_text_list.append(f"- {ref_normalized}")
-			ref_details.append(f"参照例{i}: {ref_length}文字")
-	
-	# 参照例の平均文字数を計算（参照例がある場合）
-	target_length = None
-	length_instruction = ""
-	avg_length = None
-	if ref_lengths:
-		avg_length = sum(ref_lengths) / len(ref_lengths)
-		# 平均文字数の±10%の範囲を目標文字数とする（より厳密に）
-		min_length = max(200, int(avg_length * 0.9))  # 最小200文字
-		max_length = int(avg_length * 1.1)
-		target_length = f"{min_length}〜{max_length}文字"
-		
-		# 各参照例の文字数を明示
-		ref_lengths_text = "、".join(ref_details)
-		length_instruction = f"""
-【重要：文字数指定（厳守）】
-参照例の文字数: {ref_lengths_text}
-参照例の平均文字数: 約{int(avg_length)}文字
-目標文字数: {target_length}（平均の±10%以内）
 
-⚠️ 絶対に守ってください：
-- 必ず参照例と同じくらいの分量で生成してください
-- 参照例の文字数を参考に、{int(avg_length)}文字前後（{target_length}の範囲内）で生成することが最重要です
-- 参照例と同じ文体・同じ分量感・同じ詳細度で生成してください
-- 短すぎても長すぎてもいけません。参照例の平均文字数（{int(avg_length)}文字）にできるだけ近い分量で生成してください
-"""
-	
 	refs_text = "\n".join(refs_text_list) if refs_text_list else "(参照なし)"
-	
+
 	# scoresの形式を確認（新しい形式: {"score": int, "reason": str} または 古い形式: int）
 	scores_list = []
 	for category in ["理解度", "論理性", "独自性", "実践性", "表現力"]:
@@ -902,16 +868,7 @@ def build_llm_prompt(text: str, doc_type: str, refs: List[str], scores: Dict[str
 		else:
 			scores_list.append(f"{category}:{value}")
 	scores_text = ", ".join(scores_list) if scores_list else ""
-	
-	# プロンプトの文字数指定部分を動的に置換
-	if target_length:
-		# プロンプト内の「文字数: 300〜400文字」などのパターンを置換
-		# より柔軟なパターンマッチング（全角・半角コロン、波線・ハイフンに対応）
-		base = re.sub(r"文字数[：:]\s*参照例.*?文字", f"文字数: {target_length}", base, flags=re.DOTALL)
-		base = re.sub(r"文字数[：:]\s*\d+[〜~-]\d+文字[（(].*?[）)]?", f"文字数: {target_length}（参照例の分量に合わせる）", base)
-		base = re.sub(r"文字数[：:]\s*\d+[〜~-]\d+文字", f"文字数: {target_length}（参照例の分量に合わせる）", base)
-		base = re.sub(r"- 文字数[：:]\s*\d+[〜~-]\d+文字", f"- 文字数: {target_length}（参照例の分量に合わせる）", base)
-	
+
 	# 参照例がある場合、教授の思考パターンを学習するように促す
 	if refs_text_list:
 		refs_header = """【教授の過去コメント例（深く学習してください）】
@@ -1000,29 +957,9 @@ async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt
 	llm_error = None
 	draft = None
 	
-	# 参照例の平均文字数を計算して、max_tokensを動的に設定
-	avg_length = None
-	max_tokens = 500  # デフォルト値
-	system_message = "あなたは経営戦略論の教授です。敬意と温かさを保ち、1つのまとまった文章ブロックとして出力してください。"
-	
-	if refs:
-		ref_lengths = []
-		for ref in refs:
-			if ref:
-				ref_normalized = ref.replace("\\n", "\n")
-				ref_clean = ref_normalized.replace("\n", "").replace(" ", "").replace("\t", "").replace("\\n", "")
-				ref_length = len(ref_clean)
-				ref_lengths.append(ref_length)
-		
-		if ref_lengths:
-			avg_length = sum(ref_lengths) / len(ref_lengths)
-			# 日本語の場合、1文字≈2トークン程度。安全のため平均文字数の2.5倍を設定
-			# 最小500、最大2000に制限
-			calculated_tokens = int(avg_length * 2.5)
-			max_tokens = max(500, min(calculated_tokens, 2000))
-			
-			# system_messageを強化（参照例の文字数情報を追加）
-			system_message = f"""あなたは経営戦略論の教授です。
+	# max_tokensとsystem_messageを設定（200-300字固定）
+	max_tokens = 600  # 200-300字 ≈ 400-600トークン
+	system_message = """あなたは経営戦略論の教授です。
 あなたの役割は、学生のレポートを深く理解し、教授としての専門知識と教育経験に基づいてコメントを作成することです。
 
 重要な指示：
@@ -1030,7 +967,6 @@ async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt
 - 参照例から、あなた自身の「評価基準」「指導方針」「思考パターン」を思い出してください
 - 単に文体を真似るのではなく、同じ考え方・同じ視点でコメントを作成してください
 - 参照例で重視していたポイント（例：仮説検証、実践性、あり方と実務の往復）を今回も同じように重視してください
-- 参照例の平均文字数は約{int(avg_length)}文字です。必ずこの分量に合わせて、同じくらいの文量で生成してください
 - 敬意と温かさを保ち、1つのまとまった文章ブロックとして出力してください"""
 	
 	# 3. コメント生成（マスキング後のテキストを使用）
