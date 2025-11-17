@@ -405,10 +405,42 @@ class PIIDetector:
 
 
 def load_samples() -> List[Dict]:
+	"""
+	参照例を読み込む
+	優先順位:
+	1. Supabaseのknowledge_baseテーブルから読み込み
+	2. ローカルのsample_comments.jsonから読み込み
+	3. 空のリストを返す
+	"""
+	# Supabaseから読み込む
+	if supabase:
+		try:
+			response = supabase.table("knowledge_base").select("reference_id, type, text, tags, source").execute()
+			if response.data:
+				# Supabaseのデータ形式をJSONファイル形式に変換
+				samples = []
+				for item in response.data:
+					samples.append({
+						"id": item.get("reference_id"),
+						"type": item.get("type"),
+						"text": item.get("text"),
+						"tags": item.get("tags", []),
+						"source": item.get("source", "professor_examples")
+					})
+				return samples
+		except Exception as e:
+			print(f"Supabaseからの参照例読み込みに失敗: {e}")
+			# フォールバックしてローカルファイルを試す
+
+	# ローカルファイルから読み込む（フォールバック）
 	try:
-		return json.loads(SAMPLE_PATH.read_text(encoding="utf-8"))
-	except Exception:
-		return []
+		if SAMPLE_PATH.exists():
+			return json.loads(SAMPLE_PATH.read_text(encoding="utf-8"))
+	except Exception as e:
+		print(f"ローカルファイルからの参照例読み込みに失敗: {e}")
+
+	# 両方失敗した場合は空のリストを返す
+	return []
 
 
 def save_samples(samples: List[Dict]) -> None:

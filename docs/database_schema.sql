@@ -106,3 +106,40 @@ CREATE TRIGGER update_feedbacks_updated_at
   BEFORE UPDATE ON feedbacks
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- ==========================================
+-- 参照例（ナレッジベース）テーブル
+-- ==========================================
+
+CREATE TABLE knowledge_base (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reference_id TEXT UNIQUE NOT NULL, -- 元のID（prof_0001等）
+  type TEXT NOT NULL CHECK (type IN ('reflection', 'final')), -- レポート種別
+  text TEXT NOT NULL, -- コメント本文
+  tags TEXT[], -- タグ配列
+  source TEXT DEFAULT 'professor_examples', -- データソース
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- インデックス作成
+CREATE INDEX idx_knowledge_base_type ON knowledge_base(type);
+CREATE INDEX idx_knowledge_base_created_at ON knowledge_base(created_at DESC);
+
+-- RLS設定（全ユーザーが読み取り可能）
+ALTER TABLE knowledge_base ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can view knowledge base"
+  ON knowledge_base FOR SELECT
+  USING (true); -- 全員が読み取り可能
+
+-- 管理者のみ書き込み可能（今後実装予定）
+-- CREATE POLICY "Only admins can insert knowledge base"
+--   ON knowledge_base FOR INSERT
+--   WITH CHECK (auth.jwt() ->> 'role' = 'admin');
+
+-- トリガー設定
+CREATE TRIGGER update_knowledge_base_updated_at
+  BEFORE UPDATE ON knowledge_base
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
