@@ -23,8 +23,9 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabType>('rubric')
 
   // フォーム入力状態
-  const [studentId, setStudentId] = useState('')
+  const [reportType, setReportType] = useState<'reflection' | 'final'>('reflection')
   const [reportText, setReportText] = useState('')
+  const [studentId, setStudentId] = useState('')  // 学生ID（データベース保存用）
 
   // 生成結果状態
   const [result, setResult] = useState<GenerateResponse | null>(null)
@@ -164,7 +165,7 @@ export default function DashboardPage() {
 
     try {
       // 1. AIコメント生成
-      const response = await generateComment(reportText, 'reflection')
+      const response = await generateComment(reportText, reportType)
       setResult(response)
       setEditedComment(response.ai_comment)
 
@@ -465,28 +466,60 @@ export default function DashboardPage() {
                 レポート入力
               </h2>
 
-              {/* 学生ID入力 */}
+              {/* レポートタイプ選択 */}
               <div className="mb-4">
                 <label
                   className="block text-[13px] font-medium mb-2"
                   style={{ color: 'var(--text)' }}
                 >
-                  学生ID
+                  レポートタイプ
                 </label>
-                <input
-                  type="text"
-                  placeholder="例: 123456"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                  disabled={isGenerating}
-                  className="w-full px-3 py-2 rounded-[var(--radius-sm)] text-[14px]"
-                  style={{
-                    backgroundColor: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text)',
-                    opacity: isGenerating ? 0.6 : 1
-                  }}
-                />
+                <div className="flex gap-4">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="radio"
+                      value="reflection"
+                      checked={reportType === 'reflection'}
+                      onChange={(e) => setReportType(e.target.value as 'reflection' | 'final')}
+                      disabled={isGenerating}
+                      className="mr-2"
+                      style={{
+                        cursor: isGenerating ? 'not-allowed' : 'pointer'
+                      }}
+                    />
+                    <span
+                      className="text-[14px]"
+                      style={{
+                        color: 'var(--text)',
+                        opacity: isGenerating ? 0.6 : 1
+                      }}
+                    >
+                      振り返りレポート
+                    </span>
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="radio"
+                      value="final"
+                      checked={reportType === 'final'}
+                      onChange={(e) => setReportType(e.target.value as 'reflection' | 'final')}
+                      disabled={isGenerating}
+                      className="mr-2"
+                      style={{
+                        cursor: isGenerating ? 'not-allowed' : 'pointer'
+                      }}
+                    />
+                    <span
+                      className="text-[14px]"
+                      style={{
+                        color: 'var(--text)',
+                        opacity: isGenerating ? 0.6 : 1
+                      }}
+                    >
+                      最終レポート
+                    </span>
+                  </label>
+                </div>
               </div>
 
               {/* レポート本文入力 */}

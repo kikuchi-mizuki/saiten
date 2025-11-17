@@ -912,10 +912,22 @@ def build_llm_prompt(text: str, doc_type: str, refs: List[str], scores: Dict[str
 		base = re.sub(r"文字数[：:]\s*\d+[〜~-]\d+文字", f"文字数: {target_length}（参照例の分量に合わせる）", base)
 		base = re.sub(r"- 文字数[：:]\s*\d+[〜~-]\d+文字", f"- 文字数: {target_length}（参照例の分量に合わせる）", base)
 	
+	# 参照例がある場合、教授の思考パターンを学習するように促す
+	if refs_text_list:
+		refs_header = """【教授の過去コメント例（深く学習してください）】
+以下は、教授が実際に書いた過去のコメントです。
+これらから教授の「評価基準」「指導方針」「思考パターン」を深く理解し、
+同じ考え方・同じ視点で今回のレポートにコメントしてください：
+
+"""
+		refs_section = f"{refs_header}{refs_text}\n"
+	else:
+		refs_section = "【参照例】\n（参照例なし：あなたの専門知識と教育経験に基づいてコメントしてください）\n\n"
+
 	return (
-		f"{base}\n\n【参照例（文体のヒント・分量の目安）】\n{refs_text}{length_instruction}\n"
-		f"【Rubric所感（目安）】\n{scores_text}\n\n"
-		f"【入力レポート】\n{text}\n"
+		f"{base}\n\n{refs_section}"
+		f"【Rubric所感（参考情報）】\n{scores_text}\n\n"
+		f"【今回のレポート（これに対してコメントを作成してください）】\n{text}\n"
 	)
 
 
@@ -930,7 +942,15 @@ def call_openai(prompt: str, max_tokens: int = 500, system_message: str = None) 
 		return None, "APIキーが設定されていません"
 	
 	if system_message is None:
-		system_message = "あなたは経営戦略論の教授です。敬意と温かさを保ち、1つのまとまった文章ブロックとして出力してください。"
+		system_message = """あなたは経営戦略論の教授です。
+あなたの役割は、学生のレポートを深く理解し、教授としての専門知識と教育経験に基づいてコメントを作成することです。
+
+重要な指示：
+- 提供される「参照例」は、あなた（教授）が過去に実際に書いたコメントです
+- 参照例から、あなた自身の「評価基準」「指導方針」「思考パターン」を思い出してください
+- 単に文体を真似るのではなく、同じ考え方・同じ視点でコメントを作成してください
+- 参照例で重視していたポイント（例：仮説検証、実践性、あり方と実務の往復）を今回も同じように重視してください
+- 敬意と温かさを保ち、1つのまとまった文章ブロックとして出力してください"""
 	
 	try:
 		resp = requests.post(
@@ -1001,10 +1021,17 @@ async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt
 			calculated_tokens = int(avg_length * 2.5)
 			max_tokens = max(500, min(calculated_tokens, 2000))
 			
-			# system_messageに文字数に関する指示を追加
-			system_message = f"""あなたは経営戦略論の教授です。敬意と温かさを保ち、1つのまとまった文章ブロックとして出力してください。
+			# system_messageを強化（参照例の文字数情報を追加）
+			system_message = f"""あなたは経営戦略論の教授です。
+あなたの役割は、学生のレポートを深く理解し、教授としての専門知識と教育経験に基づいてコメントを作成することです。
 
-重要：参照例の平均文字数は約{int(avg_length)}文字です。必ずこの分量に合わせて、同じくらいの文量で生成してください。"""
+重要な指示：
+- 提供される「参照例」は、あなた（教授）が過去に実際に書いたコメントです
+- 参照例から、あなた自身の「評価基準」「指導方針」「思考パターン」を思い出してください
+- 単に文体を真似るのではなく、同じ考え方・同じ視点でコメントを作成してください
+- 参照例で重視していたポイント（例：仮説検証、実践性、あり方と実務の往復）を今回も同じように重視してください
+- 参照例の平均文字数は約{int(avg_length)}文字です。必ずこの分量に合わせて、同じくらいの文量で生成してください
+- 敬意と温かさを保ち、1つのまとまった文章ブロックとして出力してください"""
 	
 	# 3. コメント生成（マスキング後のテキストを使用）
 	if USE_LLM and os.environ.get("OPENAI_API_KEY"):
