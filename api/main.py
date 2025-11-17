@@ -157,16 +157,23 @@ if ENCRYPTION_KEY_STR:
 # JWT認証ミドルウェア
 # ===========================================
 
-async def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+async def verify_jwt(credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))) -> dict:
 	"""
 	JWT検証を行い、ユーザー情報を返す
 	検証失敗時は401エラーを返す
 	"""
-	token = credentials.credentials
-
 	# JWT検証を無効化する環境変数（開発用）
 	if os.environ.get("DISABLE_AUTH", "0") == "1":
 		return {"user_id": "dev-user", "email": "dev@example.com"}
+
+	# 認証が有効な場合、credentialsが必須
+	if not credentials:
+		raise HTTPException(
+			status_code=401,
+			detail="Not authenticated"
+		)
+
+	token = credentials.credentials
 
 	try:
 		# Supabaseが設定されていない場合はエラー
