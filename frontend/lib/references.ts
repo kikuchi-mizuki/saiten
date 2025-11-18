@@ -137,26 +137,3 @@ export async function deleteReference(id: string): Promise<void> {
   }
 }
 
-/**
- * CSV形式で参照例を一括インポート
- */
-export async function importReferencesFromCSV(
-  csvData: string
-): Promise<{
-  success: boolean
-  imported_count: number
-  errors?: string[]
-}> {
-  const headers = await getAuthHeaders()
-  const response = await fetch(`${API_BASE}/references/import-csv`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ csv_data: csvData }),
-  })
-
-  if (!response.ok) {
-    throw new Error('CSVインポートに失敗しました')
-  }
-
-  return response.json()
-}

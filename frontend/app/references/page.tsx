@@ -15,13 +15,12 @@ import {
   createReference,
   updateReference,
   deleteReference,
-  importReferencesFromCSV,
   type ReferenceExample,
   type ReferenceCreateRequest,
 } from '@/lib/references'
 import type { User } from '@supabase/supabase-js'
 
-type ModalMode = 'add' | 'edit' | 'import' | null
+type ModalMode = 'add' | 'edit' | null
 
 export default function ReferencesPage() {
   const router = useRouter()
@@ -42,12 +41,6 @@ export default function ReferencesPage() {
   const [formText, setFormText] = useState('')
   const [formTags, setFormTags] = useState('')
 
-  // CSVインポート状態
-  const [csvData, setCsvData] = useState('')
-  const [importResult, setImportResult] = useState<{
-    imported_count: number
-    errors?: string[]
-  } | null>(null)
 
   useEffect(() => {
     async function checkAuth() {
@@ -123,20 +116,12 @@ export default function ReferencesPage() {
     setFormTags(reference.tags.join(', '))
   }
 
-  function openImportModal() {
-    setModalMode('import')
-    setCsvData('')
-    setImportResult(null)
-  }
-
   function closeModal() {
     setModalMode(null)
     setEditingReference(null)
     setFormType('reflection')
     setFormText('')
     setFormTags('')
-    setCsvData('')
-    setImportResult(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -189,25 +174,6 @@ export default function ReferencesPage() {
     } catch (error) {
       console.error('Delete error:', error)
       alert('削除に失敗しました')
-    }
-  }
-
-  async function handleImportCSV(e: React.FormEvent) {
-    e.preventDefault()
-    setIsSubmitting(true)
-
-    try {
-      const result = await importReferencesFromCSV(csvData)
-      setImportResult(result)
-      if (result.imported_count > 0) {
-        alert(`${result.imported_count}件の参照例をインポートしました`)
-        await loadReferences()
-      }
-    } catch (error) {
-      console.error('Import error:', error)
-      alert('インポートに失敗しました')
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
@@ -353,23 +319,6 @@ export default function ReferencesPage() {
               }}
             >
               + 参照例を追加
-            </button>
-            <button
-              onClick={openImportModal}
-              className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
-              style={{
-                backgroundColor: 'var(--surface-subtle)',
-                color: 'var(--text)',
-                border: '1px solid var(--border)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--bg)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--surface-subtle)'
-              }}
-            >
-              CSVインポート
             </button>
           </div>
 
@@ -683,113 +632,6 @@ export default function ReferencesPage() {
                     : modalMode === 'add'
                     ? '追加'
                     : '更新'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* CSVインポートモーダル */}
-      {modalMode === 'import' && (
-        <div
-          className="fixed inset-0 flex items-center justify-center z-50"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-          onClick={closeModal}
-        >
-          <div
-            className="w-full max-w-2xl p-6 rounded-[var(--radius)]"
-            style={{
-              backgroundColor: 'var(--surface)',
-              border: '1px solid var(--border)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2
-              className="text-[18px] font-semibold mb-6"
-              style={{ color: 'var(--text)' }}
-            >
-              CSVインポート
-            </h2>
-
-            <form onSubmit={handleImportCSV}>
-              <div className="mb-4">
-                <label
-                  className="block text-[13px] font-medium mb-2"
-                  style={{ color: 'var(--text)' }}
-                >
-                  CSV形式のヘッダー行:
-                  <br />
-                  <code
-                    className="text-[12px]"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    type,text,tags,source
-                  </code>
-                </label>
-                <textarea
-                  value={csvData}
-                  onChange={(e) => setCsvData(e.target.value)}
-                  required
-                  rows={10}
-                  className="w-full px-3 py-2 rounded-[var(--radius-sm)] text-[13px] font-mono"
-                  style={{
-                    backgroundColor: 'var(--bg)',
-                    color: 'var(--text)',
-                    border: '1px solid var(--border)',
-                  }}
-                  placeholder={`type,text,tags,source\nreflection,"コメント本文","タグ1,タグ2",professor_custom`}
-                />
-              </div>
-
-              {importResult && (
-                <div
-                  className="mb-4 p-3 rounded"
-                  style={{
-                    backgroundColor: importResult.errors
-                      ? '#fef2f2'
-                      : '#f0fdf4',
-                    color: importResult.errors ? '#dc2626' : '#16a34a',
-                  }}
-                >
-                  <p className="text-[13px] font-medium">
-                    {importResult.imported_count}件をインポートしました
-                  </p>
-                  {importResult.errors && importResult.errors.length > 0 && (
-                    <ul className="mt-2 text-[12px] list-disc list-inside">
-                      {importResult.errors.map((err, i) => (
-                        <li key={i}>{err}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={isSubmitting}
-                  className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
-                  style={{
-                    backgroundColor: 'var(--surface-subtle)',
-                    color: 'var(--text)',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  閉じる
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
-                  style={{
-                    backgroundColor: 'var(--accent)',
-                    color: 'white',
-                    opacity: isSubmitting ? 0.5 : 1,
-                  }}
-                >
-                  {isSubmitting ? '処理中...' : 'インポート'}
                 </button>
               </div>
             </form>
