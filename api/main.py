@@ -1325,6 +1325,56 @@ async def delete_reference(reference_id: str, user: dict = Depends(verify_jwt)):
 		raise HTTPException(status_code=500, detail=f"参照例の削除に失敗しました: {str(e)}")
 
 
+@app.post("/references/from-feedback")
+async def create_reference_from_feedback(
+	feedback_id: str,
+	edited_comment: str,
+	report_type: str,
+	user: dict = Depends(verify_jwt)
+):
+	"""修正したコメントを参照例として自動的にknowledge_baseに追加
+
+	これにより、教授が修正すればするほど、AIが教授の思考を学習します
+	"""
+	if not supabase:
+		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
+
+	try:
+		# 新しいIDを生成（learned_YYYYMMDD_XXXX形式）
+		from datetime import datetime
+		date_str = datetime.now().strftime("%Y%m%d")
+
+		response = supabase.table("knowledge_base").select("reference_id").like("reference_id", f"learned_{date_str}_%").execute()
+		learned_ids = [item["reference_id"] for item in response.data]
+
+		if learned_ids:
+			# 今日の最大番号を取得
+			max_num = max([int(id.split("_")[-1]) for id in learned_ids if id.split("_")[-1].isdigit()], default=0)
+			new_id = f"learned_{date_str}_{max_num + 1:04d}"
+		else:
+			new_id = f"learned_{date_str}_0001"
+
+		# Supabaseに新しい参照例を挿入
+		data = {
+			"reference_id": new_id,
+			"type": report_type,
+			"text": edited_comment,
+			"tags": ["自動学習", "教授修正"],
+			"source": "professor_edited"
+		}
+
+		insert_response = supabase.table("knowledge_base").insert(data).execute()
+
+		return {
+			"success": True,
+			"message": "修正したコメントを参照例として保存しました。次回から学習に使用されます。",
+			"reference_id": new_id
+		}
+
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"参照例の作成に失敗しました: {str(e)}")
+
+
 @app.post("/references/import-csv")
 async def import_csv(req: CSVImportRequest, user: dict = Depends(verify_jwt)):
 	"""CSV形式で参照例を一括インポート

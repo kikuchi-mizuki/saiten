@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getCurrentUser, signOut } from '@/lib/auth'
-import { generateComment, getStats, type GenerateResponse, type StatsResponse } from '@/lib/api'
+import { generateComment, saveCommentAsReference, type GenerateResponse } from '@/lib/api'
 import { saveReport, saveFeedback, saveQualityRating } from '@/lib/database'
 import type { User } from '@supabase/supabase-js'
 
@@ -42,9 +42,6 @@ export default function DashboardPage() {
   const [satisfactionScore, setSatisfactionScore] = useState<number | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
 
-  // 統計情報の状態
-  const [stats, setStats] = useState<StatsResponse | null>(null)
-  const [showStats, setShowStats] = useState(false)
 
   /**
    * コメントをクリップボードにコピー
@@ -57,7 +54,7 @@ export default function DashboardPage() {
   }
 
   /**
-   * コメント保存処理（手直し時間測定 + 満足度アンケート表示）
+   * コメント保存処理（手直し時間測定 + 満足度アンケート表示 + 自動学習）
    */
   async function handleSaveComment() {
     if (!feedbackId || !generateTime) {
@@ -74,6 +71,21 @@ export default function DashboardPage() {
     // 一時的に手直し時間だけ保存（満足度はアンケート送信時に保存）
     try {
       await saveQualityRating(feedbackId, editTimeSeconds, 0, '')
+
+      // 🎯 自動学習機能：修正したコメントを参照例として保存
+      if (editedComment && editedComment !== result?.ai_comment) {
+        try {
+          const response = await saveCommentAsReference(
+            feedbackId,
+            editedComment,
+            reportType
+          )
+          console.log('✅ 自動学習成功:', response.message)
+        } catch (error) {
+          console.error('⚠️ 自動学習エラー:', error)
+          // エラーは無視（メイン機能に影響しない）
+        }
+      }
     } catch (error) {
       console.error('Save edit time error:', error)
     }
@@ -130,25 +142,12 @@ export default function DashboardPage() {
       }
 
       setUser(currentUser)
-      await loadStats()
       setIsLoading(false)
     }
 
     checkAuth()
   }, [router])
 
-  /**
-   * 統計情報を読み込み
-   */
-  async function loadStats() {
-    try {
-      const statsData = await getStats()
-      setStats(statsData)
-    } catch (error) {
-      console.error('Load stats error:', error)
-      // エラーは無視（統計情報は必須ではない）
-    }
-  }
 
   /**
    * コメント生成処理
@@ -358,94 +357,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
-
-      {/* 統計情報セクション */}
-      {stats && (
-        <div className="max-w-[1400px] mx-auto px-6 py-4">
-          <div
-            className="p-4 rounded-[var(--radius)]"
-            style={{
-              backgroundColor: 'var(--surface)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-[14px] font-semibold" style={{ color: 'var(--text)' }}>
-                統計情報
-              </h2>
-              <button
-                onClick={() => setShowStats(!showStats)}
-                className="text-[12px] px-3 py-1 rounded-[var(--radius-sm)]"
-                style={{
-                  backgroundColor: 'var(--surface-subtle)',
-                  color: 'var(--text)',
-                }}
-              >
-                {showStats ? '非表示' : '表示'}
-              </button>
-            </div>
-
-            {showStats && (
-              <div className="grid grid-cols-4 gap-4">
-                {/* 総コメント生成数 */}
-                <div className="p-3 rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--bg)' }}>
-                  <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
-                    総コメント生成数
-                  </p>
-                  <p className="text-[20px] font-semibold" style={{ color: 'var(--accent)' }}>
-                    {stats.total_feedbacks}
-                  </p>
-                </div>
-
-                {/* 平均Rubric点数 */}
-                <div className="p-3 rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--bg)' }}>
-                  <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
-                    平均Rubric点数
-                  </p>
-                  <div className="space-y-1">
-                    {Object.entries(stats.avg_rubric_scores).map(([category, score]) => (
-                      <div key={category} className="flex justify-between items-center">
-                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                          {category}
-                        </span>
-                        <span className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>
-                          {score.toFixed(1)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 平均手直し時間 */}
-                <div className="p-3 rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--bg)' }}>
-                  <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
-                    平均手直し時間
-                  </p>
-                  <p className="text-[20px] font-semibold" style={{ color: 'var(--accent)' }}>
-                    {stats.avg_edit_time_seconds !== null
-                      ? `${Math.floor(stats.avg_edit_time_seconds / 60)}分${Math.floor(
-                          stats.avg_edit_time_seconds % 60
-                        )}秒`
-                      : 'N/A'}
-                  </p>
-                </div>
-
-                {/* 平均満足度 */}
-                <div className="p-3 rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--bg)' }}>
-                  <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
-                    平均満足度
-                  </p>
-                  <p className="text-[20px] font-semibold" style={{ color: 'var(--accent)' }}>
-                    {stats.avg_satisfaction_score !== null
-                      ? `${stats.avg_satisfaction_score.toFixed(1)} / 5.0`
-                      : 'N/A'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* メインコンテンツ: 7:5の2カラムレイアウト */}
       <main className="max-w-[1400px] mx-auto px-6 py-8">

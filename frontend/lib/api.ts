@@ -170,18 +170,27 @@ export interface StatsResponse {
 }
 
 /**
- * 統計情報を取得
+ * 修正したコメントを参照例として保存（自動学習）
  */
-export async function getStats(): Promise<StatsResponse> {
+export async function saveCommentAsReference(
+  feedbackId: string,
+  editedComment: string,
+  reportType: 'reflection' | 'final'
+): Promise<{ success: boolean; message: string; reference_id: string }> {
   const headers = await getAuthHeaders()
 
-  const response = await fetch(`${API_BASE_URL}/stats`, {
-    method: 'GET',
+  const response = await fetch(`${API_BASE_URL}/references/from-feedback`, {
+    method: 'POST',
     headers,
+    body: JSON.stringify({
+      feedback_id: feedbackId,
+      edited_comment: editedComment,
+      report_type: reportType,
+    }),
   })
 
   if (!response.ok) {
-    throw new Error(`Stats fetch failed: ${response.status} ${response.statusText}`)
+    throw new Error(`Save reference failed: ${response.status} ${response.statusText}`)
   }
 
   return response.json()
