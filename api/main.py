@@ -273,10 +273,6 @@ class ReferenceUpdateRequest(BaseModel):
 	source: Optional[str] = None
 
 
-class CSVImportRequest(BaseModel):
-	csv_data: str  # CSV文字列
-
-
 # ===========================================
 # PII検出・マスキング機能
 # ===========================================
@@ -1375,68 +1371,3 @@ async def create_reference_from_feedback(
 		raise HTTPException(status_code=500, detail=f"参照例の作成に失敗しました: {str(e)}")
 
 
-@app.post("/references/import-csv")
-async def import_csv(req: CSVImportRequest, user: dict = Depends(verify_jwt)):
-	"""CSV形式で参照例を一括インポート
-
-	CSV形式:
-	type,text,tags,source
-	reflection,"コメント本文","タグ1,タグ2",professor_custom
-	"""
-	import csv
-	import io
-
-	samples = load_samples()
-	imported_count = 0
-	errors = []
-
-	try:
-		# CSVを解析
-		csv_reader = csv.DictReader(io.StringIO(req.csv_data))
-
-		for i, row in enumerate(csv_reader, start=1):
-			try:
-				# 必須フィールドをチェック
-				if not row.get("type") or not row.get("text"):
-					errors.append(f"行{i}: typeとtextは必須です")
-					continue
-
-				# tagsを配列に変換
-				tags_str = row.get("tags", "")
-				tags = [t.strip() for t in tags_str.split(",") if t.strip()]
-
-				# 新しいIDを生成
-				custom_ids = [s.get("id", "") for s in samples if s.get("id", "").startswith("prof_custom_")]
-				if custom_ids:
-					max_num = max([int(id.split("_")[-1]) for id in custom_ids if id.split("_")[-1].isdigit()], default=0)
-					new_id = f"prof_custom_{max_num + 1 + imported_count:04d}"
-				else:
-					new_id = f"prof_custom_{imported_count + 1:04d}"
-
-				# 新しい参照例を追加
-				new_reference = {
-					"id": new_id,
-					"type": row["type"],
-					"text": row["text"],
-					"tags": tags,
-					"source": row.get("source", "professor_custom")
-				}
-
-				samples.append(new_reference)
-				imported_count += 1
-
-			except Exception as e:
-				errors.append(f"行{i}: {str(e)}")
-
-		# 保存
-		if imported_count > 0:
-			save_samples(samples)
-
-		return {
-			"success": True,
-			"imported_count": imported_count,
-			"errors": errors if errors else None
-		}
-
-	except Exception as e:
-		return {"error": f"CSV解析エラー: {str(e)}"}, 400

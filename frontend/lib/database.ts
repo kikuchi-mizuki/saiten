@@ -280,15 +280,6 @@ export async function deleteHistory(feedbackId: string): Promise<void> {
 }
 
 /**
- * 履歴データをJSON形式でエクスポート
- */
-export async function exportHistoryJSON(): Promise<string> {
-  const history = await getHistoryList(1000) // 全件取得
-
-  return JSON.stringify(history, null, 2)
-}
-
-/**
  * 履歴データをCSV形式でエクスポート
  */
 export async function exportHistoryCSV(): Promise<string> {

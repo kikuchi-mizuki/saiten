@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getCurrentUser, signOut } from '@/lib/auth'
-import { getHistoryList, exportHistoryJSON, exportHistoryCSV, type HistoryItem } from '@/lib/database'
+import { getHistoryList, exportHistoryCSV, type HistoryItem } from '@/lib/database'
 import type { User } from '@supabase/supabase-js'
 
 export default function HistoryPage() {
@@ -61,28 +61,6 @@ export default function HistoryPage() {
     } catch (error) {
       console.error('Sign out error:', error)
       alert('ログアウトに失敗しました')
-    }
-  }
-
-  /**
-   * JSON形式でエクスポート
-   */
-  async function handleExportJSON() {
-    setIsExporting(true)
-    try {
-      const jsonData = await exportHistoryJSON()
-      const blob = new Blob([jsonData], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `history_${new Date().toISOString().slice(0, 10)}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Export JSON error:', error)
-      alert('エクスポートに失敗しました')
-    } finally {
-      setIsExporting(false)
     }
   }
 
@@ -267,30 +245,6 @@ export default function HistoryPage() {
             }}
           >
             CSV出力
-          </button>
-          <button
-            onClick={handleExportJSON}
-            disabled={isExporting || history.length === 0}
-            className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
-            style={{
-              backgroundColor: isExporting || history.length === 0 ? 'var(--border)' : 'var(--surface-subtle)',
-              color: 'var(--text)',
-              border: '1px solid var(--border)',
-              opacity: isExporting || history.length === 0 ? 0.5 : 1,
-              cursor: isExporting || history.length === 0 ? 'not-allowed' : 'pointer'
-            }}
-            onMouseEnter={(e) => {
-              if (!isExporting && history.length > 0) {
-                e.currentTarget.style.backgroundColor = 'var(--bg)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isExporting && history.length > 0) {
-                e.currentTarget.style.backgroundColor = 'var(--surface-subtle)'
-              }
-            }}
-          >
-            JSON出力
           </button>
         </div>
 
