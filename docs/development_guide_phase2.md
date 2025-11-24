@@ -30,8 +30,8 @@
 
 ### 主要機能
 1. RAG精度向上（Embedding + pgvector）
-2. ナレッジベース管理UI（音声・テキストで教授の思考を追加）
-3. 音声入力機能（Whisper API）
+2. ナレッジベース管理UI（ファイルアップロード・テキストで教授の思考を追加）
+3. ファイルアップロード機能（Whisper API）- **要件変更**: 音声録音 → ファイルアップロード
 4. PPT資料自動生成機能
 
 ---
@@ -899,89 +899,92 @@ async def add_knowledge(
 
 ---
 
-## Week 5-6: 音声入力機能
+## Week 5-6: ファイルアップロード機能
+
+**要件変更**: 音声録音機能（MediaRecorder API）→ ファイルアップロード機能に変更
 
 ### 目標
-音声でナレッジベースに思考を追加できるようにする
+音声/テキストファイルをアップロードしてナレッジベースに追加できるようにする
 
-### Day 1-4: フロントエンド音声録音機能
+### Day 1-5: フロントエンドファイルアップロード機能
 
-#### 1. 音声録音ページ
+#### 1. ファイルアップロードページ
 
-`frontend/app/knowledge-base/add-audio/page.tsx` を作成：
+`frontend/app/knowledge-base/upload-file/page.tsx` を作成：
 
 ```tsx
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function AddAudioPage() {
+export default function UploadFilePage() {
   const router = useRouter()
-  const [isRecording, setIsRecording] = useState(false)
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
-  const [transcribedText, setTranscribedText] = useState('')
-  const [isTranscribing, setIsTranscribing] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [extractedText, setExtractedText] = useState('')
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([])
 
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
-      mediaRecorderRef.current = mediaRecorder
+  // ドラッグ&ドロップ処理
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(true)
+  }
 
-      const chunks: Blob[] = []
-      mediaRecorder.ondataavailable = (e) => {
-        chunks.push(e.data)
-      }
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+  }
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' })
-        setAudioBlob(blob)
-        stream.getTracks().forEach(track => track.stop())
-      }
-
-      mediaRecorder.start()
-      setIsRecording(true)
-      setRecordingTime(0)
-
-      // タイマー開始
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => {
-          if (prev >= 600) { // 10分
-            stopRecording()
-            return 600
-          }
-          return prev + 1
-        })
-      }, 1000)
-    } catch (error) {
-      console.error('Recording error:', error)
-      alert('マイクへのアクセスが拒否されました')
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+      handleFileSelect(files[0])
     }
   }
 
-  function stopRecording() {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
-      setIsRecording(false)
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-      }
+  // ファイル選択処理
+  function handleFileSelect(file: File) {
+    // ファイルタイプ検証
+    const validAudioTypes = ['audio/mpeg', 'audio/wav', 'audio/m4a']
+    const validTextTypes = ['text/plain']
+
+    if (!validAudioTypes.includes(file.type) && !validTextTypes.includes(file.type)) {
+      alert('対応していないファイル形式です。mp3, wav, m4a, txt のみ対応しています。')
+      return
     }
+
+    // ファイルサイズ検証
+    const maxSize = validAudioTypes.includes(file.type) ? 25 * 1024 * 1024 : 1 * 1024 * 1024
+    if (file.size > maxSize) {
+      alert(`ファイルサイズが大きすぎます。${validAudioTypes.includes(file.type) ? '25MB' : '1MB'}以下にしてください。`)
+      return
+    }
+
+    setSelectedFile(file)
   }
 
-  async function handleTranscribe() {
-    if (!audioBlob) return
+  // アップロード処理
+  async function handleUpload() {
+    if (!selectedFile) return
 
-    setIsTranscribing(true)
+    setIsUploading(true)
+    setUploadProgress(0)
+
     try {
       const formData = new FormData()
-      formData.append('audio', audioBlob, 'recording.webm')
+      formData.append('file', selectedFile)
 
-      const response = await fetch('/api/transcribe', {
+      // プログレスバーのシミュレーション（実際のアップロードプログレスは別途実装が必要）
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 10, 90))
+      }, 200)
+
+      const response = await fetch('/api/upload-file', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${await getToken()}`
@@ -989,74 +992,119 @@ export default function AddAudioPage() {
         body: formData
       })
 
-      const data = await response.json()
-      setTranscribedText(data.text)
-    } catch (error) {
-      console.error('Transcribe error:', error)
-      alert('テキスト変換に失敗しました')
-    } finally {
-      setIsTranscribing(false)
-    }
-  }
+      clearInterval(progressInterval)
+      setUploadProgress(100)
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      const data = await response.json()
+      setExtractedText(data.text)
+      setSuggestedTags(data.suggested_tags)
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('ファイルのアップロードに失敗しました')
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   return (
     <div className="min-h-screen p-8">
-      <h1 className="text-[18px] font-semibold mb-6">音声入力</h1>
+      <h1 className="text-[18px] font-semibold mb-6">ファイルアップロード</h1>
 
       <div className="max-w-2xl mx-auto">
-        {!isRecording && !audioBlob && (
-          <div className="text-center p-12 border rounded">
-            <div className="text-[48px] mb-4">🎤</div>
-            <p className="text-[14px] mb-6">録音準備完了</p>
-            <button onClick={startRecording} className="px-6 py-3 rounded text-[16px]">
-              🔴 録音開始
-            </button>
-            <p className="text-[12px] mt-4 text-muted">
-              ヒント: ブラウザがマイクへのアクセスを要求します。許可してください。
+        {!selectedFile && (
+          <div
+            className={`text-center p-12 border-2 border-dashed rounded ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+            onDragEnter={handleDragEnter}
+            onDragOver={(e) => e.preventDefault()}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <div className="text-[48px] mb-4">📁</div>
+            <p className="text-[16px] mb-4">ファイルをドラッグ&ドロップ</p>
+            <p className="text-[14px] mb-6">または</p>
+            <label className="px-6 py-3 rounded text-[16px] cursor-pointer inline-block bg-blue-500 text-white">
+              📎 ファイルを選択
+              <input
+                type="file"
+                accept=".mp3,.wav,.m4a,.txt"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    handleFileSelect(e.target.files[0])
+                  }
+                }}
+              />
+            </label>
+            <p className="text-[12px] mt-6 text-gray-500">
+              対応形式:<br />
+              • 音声: mp3, wav, m4a（最大25MB）<br />
+              • テキスト: txt（最大1MB）
             </p>
           </div>
         )}
 
-        {isRecording && (
-          <div className="text-center p-12 border rounded">
-            <div className="text-[48px] mb-4">⏺</div>
-            <p className="text-[18px] mb-2">録音中...</p>
-            <p className="text-[24px] font-mono mb-6">{formatTime(recordingTime)} / 10:00</p>
-            <button onClick={stopRecording} className="px-6 py-3 rounded text-[16px]">
-              ⏹ 停止
-            </button>
-          </div>
-        )}
-
-        {audioBlob && !transcribedText && (
+        {selectedFile && !extractedText && (
           <div className="text-center p-12 border rounded">
             <div className="text-[48px] mb-4">✅</div>
-            <p className="text-[18px] mb-2">録音完了（{formatTime(recordingTime)}）</p>
-            <button onClick={handleTranscribe} disabled={isTranscribing} className="px-6 py-3 rounded text-[16px] mt-4">
-              {isTranscribing ? '🔄 テキスト変換中...' : 'テキストに変換'}
-            </button>
+            <p className="text-[18px] mb-2">ファイル選択: {selectedFile.name}</p>
+            <p className="text-[14px] mb-6">サイズ: {(selectedFile.size / 1024 / 1024).toFixed(2)}MB</p>
+
+            {!isUploading && (
+              <button onClick={handleUpload} className="px-6 py-3 rounded text-[16px] bg-blue-500 text-white">
+                🚀 アップロード開始
+              </button>
+            )}
+
+            {isUploading && (
+              <div>
+                <p className="text-[16px] mb-4">🔄 アップロード中...</p>
+                <div className="w-full bg-gray-200 rounded h-4 mb-4">
+                  <div
+                    className="bg-blue-500 h-4 rounded transition-all"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-[14px] text-gray-500">
+                  {selectedFile.type.startsWith('audio/') && uploadProgress === 100 && '🔄 テキスト変換中...（Whisper APIで処理中）'}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {transcribedText && (
+        {extractedText && (
           <div className="p-6 border rounded">
-            <p className="text-[14px] mb-2">テキスト変換結果:</p>
+            <p className="text-[14px] mb-2">抽出されたテキスト:</p>
             <textarea
-              value={transcribedText}
-              onChange={(e) => setTranscribedText(e.target.value)}
-              className="w-full h-64 p-3 border rounded"
+              value={extractedText}
+              onChange={(e) => setExtractedText(e.target.value)}
+              className="w-full h-64 p-3 border rounded mb-4"
             />
+
+            <p className="text-[14px] mb-2">提案タグ:</p>
+            <div className="flex gap-2 flex-wrap mb-4">
+              {suggestedTags.map(tag => (
+                <span key={tag} className="px-3 py-1 text-[13px] rounded border bg-gray-100">
+                  {tag}
+                </span>
+              ))}
+            </div>
+
             <div className="mt-4 flex gap-4">
-              <button onClick={() => router.push(`/knowledge-base/add-text?text=${encodeURIComponent(transcribedText)}`)} className="px-6 py-2 rounded">
+              <button
+                onClick={() => router.push(`/knowledge-base/add-text?text=${encodeURIComponent(extractedText)}&tags=${suggestedTags.join(',')}`)}
+                className="px-6 py-2 rounded bg-blue-500 text-white"
+              >
                 保存
               </button>
-              <button onClick={() => { setAudioBlob(null); setTranscribedText(''); }} className="px-6 py-2 rounded">
+              <button
+                onClick={() => {
+                  setSelectedFile(null);
+                  setExtractedText('');
+                  setSuggestedTags([]);
+                }}
+                className="px-6 py-2 rounded border"
+              >
                 やり直し
               </button>
             </div>
@@ -1068,33 +1116,48 @@ export default function AddAudioPage() {
 }
 ```
 
-### Day 5-10: Whisper API統合
+### Day 6-10: Whisper API統合とテキスト抽出
 
-#### 1. 音声変換API
+#### 1. ファイルアップロードAPI
 
 `api/main.py` に以下を追加：
 
 ```python
 from openai import OpenAI
 import os
+import chardet
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-@app.post("/transcribe")
-async def transcribe_audio(
-    audio: UploadFile = File(...),
+@app.post("/upload-file")
+async def upload_file(
+    file: UploadFile = File(...),
     authorization: str = Header(None)
 ):
     """
-    音声をテキストに変換（Whisper API）
+    音声/テキストファイルをアップロードしてテキスト抽出
     """
     # JWT検証（省略）
     user_id = verify_jwt(authorization)
 
-    # 音声ファイルを一時保存
-    audio_path = f"/tmp/{audio.filename}"
+    # ファイルタイプ判定
+    file_extension = file.filename.split('.')[-1].lower()
+
+    if file_extension in ['mp3', 'wav', 'm4a']:
+        # 音声ファイル処理
+        return await handle_audio_file(file)
+    elif file_extension == 'txt':
+        # テキストファイル処理
+        return await handle_text_file(file)
+    else:
+        raise HTTPException(status_code=400, detail="対応していないファイル形式です")
+
+async def handle_audio_file(file: UploadFile):
+    """音声ファイルの処理"""
+    # 一時保存
+    audio_path = f"/tmp/{file.filename}"
     with open(audio_path, "wb") as f:
-        f.write(await audio.read())
+        f.write(await file.read())
 
     try:
         # Whisper APIで変換
@@ -1108,17 +1171,75 @@ async def transcribe_audio(
         # 一時ファイル削除
         os.remove(audio_path)
 
-        return {"text": transcript.text}
+        # タグ生成
+        suggested_tags = await generate_tags_from_text(transcript.text)
+
+        return {
+            "text": transcript.text,
+            "suggested_tags": suggested_tags,
+            "file_type": "audio"
+        }
     except Exception as e:
-        print(f"Transcribe error: {e}")
+        print(f"Audio processing error: {e}")
         if os.path.exists(audio_path):
             os.remove(audio_path)
         raise HTTPException(status_code=500, detail="音声変換に失敗しました")
+
+async def handle_text_file(file: UploadFile):
+    """テキストファイルの処理"""
+    try:
+        # ファイル内容を読み込み
+        content = await file.read()
+
+        # 文字コード自動検出
+        detected = chardet.detect(content)
+        encoding = detected['encoding'] or 'utf-8'
+
+        # デコード
+        text = content.decode(encoding)
+
+        # タグ生成
+        suggested_tags = await generate_tags_from_text(text)
+
+        return {
+            "text": text,
+            "suggested_tags": suggested_tags,
+            "file_type": "text"
+        }
+    except Exception as e:
+        print(f"Text file processing error: {e}")
+        raise HTTPException(status_code=500, detail="テキストファイルの読み込みに失敗しました")
+
+async def generate_tags_from_text(text: str) -> list:
+    """LLMでタグを生成"""
+    prompt = f"""以下のテキストを読み、適切なタグを3-5個提案してください。
+タグは「起業論」「戦略論」「リーダーシップ」「組織論」「イノベーション」「顧客視点」などの形式で、
+日本語で簡潔に記述してください。
+
+テキスト:
+{text[:500]}...
+
+タグ（カンマ区切りで出力）:"""
+
+    response = call_openai(prompt, max_tokens=50, system_message="あなたはテキスト分類の専門家です。")
+    tags_str = response.strip()
+    tags = [tag.strip() for tag in tags_str.split(',')]
+
+    return tags[:5]
+```
+
+#### 2. 依存パッケージの追加
+
+```bash
+pip install chardet
+pip freeze > requirements.txt
 ```
 
 **Week 5-6 完了基準**:
-- [ ] 音声録音機能が動作する（ブラウザ）
-- [ ] Whisper APIでテキスト変換が動作する
+- [ ] ファイルアップロード機能が動作する（ドラッグ&ドロップ、ファイル選択）
+- [ ] 音声ファイル（mp3, wav, m4a）→Whisper APIでテキスト変換が動作する
+- [ ] テキストファイル（txt）→内容抽出が動作する
+- [ ] LLM自動タグ付けが動作する
 - [ ] 変換されたテキストをナレッジベースに保存できる
 
 ---
