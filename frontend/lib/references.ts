@@ -55,17 +55,53 @@ export interface ReferenceUpdateRequest {
 }
 
 /**
- * 全ての参照例を取得
+ * 参照例取得のオプション（Phase 2: 検索・フィルタ・ページネーション対応）
  */
-export async function getAllReferences(): Promise<{
+export interface GetReferencesOptions {
+  search?: string
+  tags?: string
+  type?: 'reflection' | 'final'
+  sort?: 'created_desc' | 'created_asc'
+  page?: number
+  per_page?: number
+}
+
+/**
+ * 参照例取得のレスポンス（Phase 2対応）
+ */
+export interface GetReferencesResponse {
   references: ReferenceExample[]
   count: number
-}> {
+  total: number
+  page: number
+  per_page: number
+  total_pages: number
+}
+
+/**
+ * 全ての参照例を取得（Phase 2: 検索・フィルタ・ページネーション対応）
+ */
+export async function getAllReferences(
+  options: GetReferencesOptions = {}
+): Promise<GetReferencesResponse> {
   const headers = await getAuthHeaders()
-  const response = await fetch(`${API_BASE}/references`, { headers })
+
+  // クエリパラメータを構築
+  const params = new URLSearchParams()
+  if (options.search) params.append('search', options.search)
+  if (options.tags) params.append('tags', options.tags)
+  if (options.type) params.append('type', options.type)
+  if (options.sort) params.append('sort', options.sort)
+  if (options.page) params.append('page', options.page.toString())
+  if (options.per_page) params.append('per_page', options.per_page.toString())
+
+  const url = `${API_BASE}/references${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url, { headers })
+
   if (!response.ok) {
     throw new Error('参照例の取得に失敗しました')
   }
+
   return response.json()
 }
 
@@ -82,11 +118,21 @@ export async function getReference(id: string): Promise<ReferenceExample> {
 }
 
 /**
- * 新しい参照例を作成
+ * 参照例作成のレスポンス（Phase 2: LLM自動タグ付け対応）
+ */
+export interface CreateReferenceResponse {
+  success: boolean
+  reference: ReferenceExample & {
+    auto_tagged?: boolean  // LLMが自動でタグ付けしたかどうか
+  }
+}
+
+/**
+ * 新しい参照例を作成（Phase 2: LLM自動タグ付け対応）
  */
 export async function createReference(
   data: ReferenceCreateRequest
-): Promise<{ success: boolean; reference: ReferenceExample }> {
+): Promise<CreateReferenceResponse> {
   const headers = await getAuthHeaders()
   const response = await fetch(`${API_BASE}/references`, {
     method: 'POST',

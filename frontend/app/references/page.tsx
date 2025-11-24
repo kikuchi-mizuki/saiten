@@ -27,9 +27,14 @@ export default function ReferencesPage() {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [references, setReferences] = useState<ReferenceExample[]>([])
-  const [filteredReferences, setFilteredReferences] = useState<ReferenceExample[]>([])
   const [filterType, setFilterType] = useState<'all' | 'reflection' | 'final'>('all')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Phase 2: ページネーション対応
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const perPage = 20
 
   // モーダル状態
   const [modalMode, setModalMode] = useState<ModalMode>(null)
@@ -40,6 +45,7 @@ export default function ReferencesPage() {
   const [formType, setFormType] = useState<'reflection' | 'final'>('reflection')
   const [formText, setFormText] = useState('')
   const [formTags, setFormTags] = useState('')
+  const [autoTagged, setAutoTagged] = useState(false)  // Phase 2: LLM自動タグ付け
 
 
   useEffect(() => {
@@ -59,32 +65,25 @@ export default function ReferencesPage() {
     checkAuth()
   }, [router])
 
+  // Phase 2: サーバーサイド検索・フィルタ・ページネーション
   useEffect(() => {
-    // フィルタリング処理
-    let filtered = references
-
-    // タイプフィルター
-    if (filterType !== 'all') {
-      filtered = filtered.filter((ref) => ref.type === filterType)
+    if (user) {
+      loadReferences()
     }
-
-    // 検索フィルター
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(
-        (ref) =>
-          ref.text.toLowerCase().includes(query) ||
-          ref.tags.some((tag) => tag.toLowerCase().includes(query))
-      )
-    }
-
-    setFilteredReferences(filtered)
-  }, [references, filterType, searchQuery])
+  }, [user, filterType, searchQuery, currentPage])
 
   async function loadReferences() {
     try {
-      const data = await getAllReferences()
+      const data = await getAllReferences({
+        search: searchQuery || undefined,
+        type: filterType !== 'all' ? filterType : undefined,
+        page: currentPage,
+        per_page: perPage,
+        sort: 'created_desc',
+      })
       setReferences(data.references)
+      setTotalPages(data.total_pages)
+      setTotalCount(data.total)
     } catch (error) {
       console.error('Load references error:', error)
       alert('参照例の読み込みに失敗しました')
@@ -388,13 +387,13 @@ export default function ReferencesPage() {
               className="text-[20px] font-semibold"
               style={{ color: 'var(--accent)' }}
             >
-              {filteredReferences.length}件
+              {totalCount}件（ページ {currentPage}/{totalPages}）
             </p>
           </div>
         </div>
 
         {/* 参照例一覧 */}
-        {filteredReferences.length === 0 ? (
+        {references.length === 0 ? (
           <div
             className="p-12 rounded-[var(--radius)] text-center"
             style={{
@@ -410,7 +409,7 @@ export default function ReferencesPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredReferences.map((ref) => (
+            {references.map((ref) => (
               <div
                 key={ref.id}
                 className="p-6 rounded-[var(--radius)]"
@@ -506,6 +505,39 @@ export default function ReferencesPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Phase 2: ページネーション */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-4 mt-8">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 rounded transition disabled:opacity-50"
+              style={{
+                backgroundColor: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+              }}
+            >
+              ← 前へ
+            </button>
+            <span style={{ color: 'var(--text-subtle)' }}>
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 rounded transition disabled:opacity-50"
+              style={{
+                backgroundColor: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+              }}
+            >
+              次へ →
+            </button>
           </div>
         )}
       </main>
