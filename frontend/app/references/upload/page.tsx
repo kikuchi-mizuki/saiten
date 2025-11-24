@@ -271,7 +271,7 @@ export default function UploadFilePage() {
 
             {/* ファイル選択エリア */}
             <div
-              className={`text-center p-12 border-2 border-dashed rounded-[var(--radius-sm)] ${isDragging ? 'bg-blue-50' : ''}`}
+              className={`flex flex-col items-center p-12 border-2 border-dashed rounded-[var(--radius-sm)] ${isDragging ? 'bg-blue-50' : ''}`}
               style={{
                 borderColor: isDragging ? 'var(--accent)' : 'var(--border)',
                 backgroundColor: isDragging ? 'var(--surface-hover)' : 'var(--surface)'
