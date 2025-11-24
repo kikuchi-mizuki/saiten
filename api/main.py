@@ -884,7 +884,7 @@ def build_llm_prompt(text: str, doc_type: str, refs: List[str], scores: Dict[str
 	)
 
 
-def call_openai(prompt: str, max_tokens: int = 500, system_message: str = None) -> Tuple[Optional[str], Optional[str]]:
+def call_openai(prompt: str, max_tokens: int = 400, system_message: str = None) -> Tuple[Optional[str], Optional[str]]:
 	"""OpenAI APIを呼び出し、結果とエラーを返す
 	Args:
 		prompt: ユーザープロンプト
@@ -974,17 +974,10 @@ async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt
 	llm_error = None
 	draft = None
 	
-	# max_tokensとsystem_messageを設定（200-300字固定）
-	max_tokens = 600  # 200-300字 ≈ 400-600トークン
-	system_message = """あなたは経営戦略論の教授です。
-あなたの役割は、学生のレポートを深く理解し、教授としての専門知識と教育経験に基づいてコメントを作成することです。
-
-重要な指示：
-- 提供される「参照例」は、あなた（教授）が過去に実際に書いたコメントです
-- 参照例から、あなた自身の「評価基準」「指導方針」「思考パターン」を思い出してください
-- 単に文体を真似るのではなく、同じ考え方・同じ視点でコメントを作成してください
-- 参照例で重視していたポイント（例：仮説検証、実践性、あり方と実務の往復）を今回も同じように重視してください
-- 敬意と温かさを保ち、1つのまとまった文章ブロックとして出力してください"""
+	# max_tokensとsystem_messageを設定（150-250字固定）
+	max_tokens = 450  # 150-250字 ≈ 300-500トークン（安全マージン含む）
+	# 最新のsystem_messageを使用（call_openai関数のデフォルトを使う）
+	system_message = None  # Noneの場合、call_openai内で最新のsystem_messageが使われる
 	
 	# 3. コメント生成（マスキング後のテキストを使用）
 	if USE_LLM and os.environ.get("OPENAI_API_KEY"):
