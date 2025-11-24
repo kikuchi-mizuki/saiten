@@ -80,9 +80,9 @@ export default function UploadFilePage() {
       return
     }
 
-    const maxSize = isValidAudio ? 25 * 1024 * 1024 : 1 * 1024 * 1024
+    const maxSize = isValidAudio ? 100 * 1024 * 1024 : 1 * 1024 * 1024
     if (file.size > maxSize) {
-      alert(`ファイルサイズが大きすぎます。${isValidAudio ? '25MB' : '1MB'}以下にしてください。`)
+      alert(`ファイルサイズが大きすぎます。${isValidAudio ? '100MB' : '1MB'}以下にしてください。`)
       return
     }
 
@@ -289,7 +289,7 @@ export default function UploadFilePage() {
               </label>
               <p className="text-[12px] mt-6" style={{ color: 'var(--text-muted)' }}>
                 対応形式:<br />
-                • 音声: mp3, wav, m4a（最大25MB）<br />
+                • 音声: mp3, wav, m4a（最大100MB）<br />
                 • テキスト: txt（最大1MB）
               </p>
             </div>

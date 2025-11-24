@@ -1523,6 +1523,39 @@ async def handle_audio_file(file: UploadFile, split_by_topic: bool = False):
 
 		print(f"🎤 音声ファイルをアップロード: {file.filename} ({len(content)} bytes)")
 
+		# ファイルサイズが25MBを超える場合は圧縮
+		MAX_WHISPER_SIZE = 25 * 1024 * 1024  # 25MB
+		if len(content) > MAX_WHISPER_SIZE:
+			print(f"⚠️  ファイルサイズが25MBを超えています。圧縮中...")
+			try:
+				from pydub import AudioSegment
+
+				# 音声ファイルを読み込み
+				audio = AudioSegment.from_file(audio_path)
+
+				# 圧縮した一時ファイルパス
+				compressed_path = f"/tmp/compressed_{file.filename}"
+
+				# 低ビットレートでエクスポート（音声認識には64kbpsで十分）
+				audio.export(
+					compressed_path,
+					format="mp3",
+					bitrate="64k",
+					parameters=["-ac", "1"]  # モノラルに変換
+				)
+
+				# 圧縮後のサイズを確認
+				compressed_size = os.path.getsize(compressed_path)
+				print(f"✅ 圧縮完了: {len(content)} bytes → {compressed_size} bytes ({compressed_size / len(content) * 100:.1f}%)")
+
+				# 元のファイルを削除し、圧縮ファイルを使用
+				os.remove(audio_path)
+				audio_path = compressed_path
+
+			except Exception as e:
+				print(f"⚠️  圧縮失敗: {e}")
+				print(f"元のファイルで処理を続行します")
+
 		# Whisper APIで変換
 		with open(audio_path, "rb") as audio_file:
 			transcript = client.audio.transcriptions.create(

@@ -9,4 +9,5 @@ cryptography>=41.0.0
 chardet>=5.2.0
 openai>=1.0.0
 python-multipart>=0.0.6
+pydub>=0.25.1
 
