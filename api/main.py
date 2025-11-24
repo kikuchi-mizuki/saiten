@@ -475,12 +475,48 @@ def jaccard(a: List[str], b: List[str]) -> float:
 	return len(set_a & set_b) / max(1, len(set_a | set_b))
 
 
-def retrieve_refs(text: str, doc_type: str, k: int = 2) -> List[str]:
-	samples = load_samples()
-	toks = tokenize(text)
-	candidates = [s for s in samples if s.get("type") == ("reflection" if doc_type == "reflection" else "final")]
-	scored = sorted(((jaccard(toks, tokenize(c.get("text", ""))), c.get("text", "")) for c in candidates), reverse=True)
-	return [t for _, t in scored[:k]]
+def retrieve_refs(text: str, doc_type: str, k: int = 5) -> List[str]:
+	"""
+	Embeddingベースで参照例を検索（Phase 2版）
+
+	Args:
+		text: 検索クエリ（レポート本文）
+		doc_type: レポート種別（reflection or final）
+		k: 取得件数（デフォルト5件に増加）
+
+	Returns:
+		参照例のテキストリスト
+	"""
+	try:
+		# Embedding生成
+		from utils.embedding import generate_embedding
+		query_embedding = generate_embedding(text)
+
+		# Supabaseでベクトル検索
+		result = supabase.rpc(
+			"search_knowledge_by_embedding",
+			{
+				"query_embedding": query_embedding,
+				"match_count": k * 2  # type フィルタ前に多めに取得
+			}
+		).execute()
+
+		# レポート種別でフィルタ
+		target_type = "reflection" if doc_type == "reflection" else "final"
+		filtered = [item for item in result.data if item.get("type") == target_type]
+
+		# 上位k件のテキストを返す
+		return [item["text"] for item in filtered[:k]]
+
+	except Exception as e:
+		print(f"Embedding検索エラー: {e}")
+		print("フォールバック: Jaccard類似度検索を使用")
+		# フォールバック: 既存のJaccard検索
+		samples = load_samples()
+		toks = tokenize(text)
+		candidates = [s for s in samples if s.get("type") == ("reflection" if doc_type == "reflection" else "final")]
+		scored = sorted(((jaccard(toks, tokenize(c.get("text", ""))), c.get("text", "")) for c in candidates), reverse=True)
+		return [t for _, t in scored[:k]]
 
 
 def load_prompt(doc_type: str) -> str:

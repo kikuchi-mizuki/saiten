@@ -11,9 +11,9 @@ CREATE OR REPLACE FUNCTION search_knowledge_by_embedding(
 )
 RETURNS TABLE (
   id UUID,
-  comment_text TEXT,
+  text TEXT,
   content_type TEXT,
-  report_type TEXT,
+  type TEXT,
   tags TEXT[],
   source TEXT,
   similarity FLOAT
@@ -24,9 +24,9 @@ BEGIN
   RETURN QUERY
   SELECT
     kb.id,
-    kb.comment_text,
+    kb.text,
     kb.content_type,
-    kb.report_type,
+    kb.type,
     kb.tags,
     kb.source,
     1 - (kb.embedding <=> query_embedding) AS similarity
