@@ -69,22 +69,26 @@
 - Week 12: 検証・改善（UAT実施）
 - Week 13-14: 最終調整・ドキュメント・デプロイ準備
 
-### Phase 2-A: データ基盤強化（4-5週間）
-**目標**: データ蓄積活用 + RAG強化
+### Phase 2: 教授思考学習型PPT自動生成システム（8週間）
+**目標**: 教授の思考を学習し、講義・講演用PPT資料を自動生成
 
-- Embedding + pgvector による高度なRAG実装
-- ナレッジベース管理機能
-- RBAC（複数ユーザー対応準備）
-- 本格的な監視基盤構築
-- 正式なSLO/SLA定義
+**主要機能**:
+- Embedding + pgvector による高度なRAG実装（Week 1-2）
+- ナレッジベース管理UI（音声・テキストで教授の思考を追加）（Week 3-4）
+- 音声入力機能（Whisper API）（Week 5-6）
+- PPT資料自動生成機能（ターゲット + 構成 + テーマ指定）（Week 7）
+- テスト・改善・ドキュメント（Week 8）
 
-### Phase 2-B: マルチモーダル対応（3-4週間）
-**目標**: 音声・資料対応
+**技術スタック**:
+- Embedding: OpenAI text-embedding-3-small
+- ベクトルDB: Supabase pgvector
+- 音声認識: Whisper API
+- PPT生成: python-pptx
+- LLM: コメント生成はgpt-4o-mini、PPT生成はgpt-4o
 
-- 音声入力（Whisper API）
-- 音声出力（TTS API）
-- PPTX/PDF資料アップロード対応
-- OCR + Vision API連携
+**月間コスト**: 約¥1,000（Phase 1: ¥30 → Phase 2: ¥988）
+
+**詳細**: `docs/requirements_phase2.md` 参照
 
 ### Phase 3: リアルタイムチャットボット（6-8週間）
 **目標**: 学生向けチャット機能
