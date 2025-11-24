@@ -1245,10 +1245,79 @@ async def get_stats(user: dict = Depends(verify_jwt)) -> StatsResponse:
 # ===========================================
 
 @app.get("/references")
-async def get_references(user: dict = Depends(verify_jwt)):
-	"""全ての参照例を取得"""
-	samples = load_samples()
-	return {"references": samples, "count": len(samples)}
+async def get_references(
+	user: dict = Depends(verify_jwt),
+	search: Optional[str] = None,  # テキスト検索
+	tags: Optional[str] = None,  # タグフィルタ（カンマ区切り）
+	type: Optional[str] = None,  # typeフィルタ（reflection/final）
+	sort: Optional[str] = "created_desc",  # 並び替え（created_desc/created_asc/tags）
+	page: int = 1,  # ページ番号
+	per_page: int = 20  # 1ページあたりの件数
+):
+	"""参照例を取得（Phase 2: 検索・フィルタ・ページネーション対応）"""
+	if not supabase:
+		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
+
+	try:
+		# ベースクエリ
+		query = supabase.table("knowledge_base").select("*", count="exact")
+
+		# テキスト検索
+		if search:
+			query = query.ilike("text", f"%{search}%")
+
+		# typeフィルタ
+		if type and type in ["reflection", "final"]:
+			query = query.eq("type", type)
+
+		# タグフィルタ
+		if tags:
+			tag_list = [t.strip() for t in tags.split(",")]
+			# PostgreSQL配列の包含検索
+			for tag in tag_list:
+				query = query.contains("tags", [tag])
+
+		# 並び替え
+		if sort == "created_asc":
+			query = query.order("created_at", desc=False)
+		elif sort == "created_desc":
+			query = query.order("created_at", desc=True)
+		# tags sort は複雑なのでスキップ（将来的に実装）
+
+		# ページネーション
+		offset = (page - 1) * per_page
+		query = query.range(offset, offset + per_page - 1)
+
+		# 実行
+		response = query.execute()
+
+		# レスポンス整形
+		references = []
+		for item in response.data:
+			references.append({
+				"id": item.get("reference_id", item.get("id")),
+				"type": item.get("type"),
+				"text": item.get("text"),
+				"tags": item.get("tags", []),
+				"source": item.get("source", ""),
+				"content_type": item.get("content_type", "comment"),
+				"created_at": item.get("created_at")
+			})
+
+		# 総件数を取得
+		total = response.count if hasattr(response, 'count') else len(references)
+
+		return {
+			"references": references,
+			"count": len(references),
+			"total": total,
+			"page": page,
+			"per_page": per_page,
+			"total_pages": (total + per_page - 1) // per_page if total else 0
+		}
+
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"参照例の取得に失敗しました: {str(e)}")
 
 
 @app.get("/references/{reference_id}")
@@ -1263,7 +1332,7 @@ async def get_reference(reference_id: str, user: dict = Depends(verify_jwt)):
 
 @app.post("/references")
 async def create_reference(req: ReferenceCreateRequest, user: dict = Depends(verify_jwt)):
-	"""新しい参照例を作成"""
+	"""新しい参照例を作成（Phase 2: Embedding + LLM自動タグ付け対応）"""
 	if not supabase:
 		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
 
@@ -1279,13 +1348,34 @@ async def create_reference(req: ReferenceCreateRequest, user: dict = Depends(ver
 		else:
 			new_id = "prof_custom_0001"
 
+		# LLM自動タグ付け（タグが空の場合）
+		tags = req.tags
+		if not tags or len(tags) == 0:
+			from .utils.tagging import generate_tags
+			# 既存のタグリストを取得して参考にする
+			existing_tags_response = supabase.table("knowledge_base").select("tags").limit(100).execute()
+			all_existing_tags = []
+			for item in existing_tags_response.data:
+				if item.get("tags"):
+					all_existing_tags.extend(item["tags"])
+			unique_tags = list(set(all_existing_tags))
+			tags = generate_tags(req.text, unique_tags)
+			print(f"🏷️  LLM自動タグ付け: {tags}")
+
+		# Embedding生成
+		from .utils.embedding import generate_embedding
+		embedding = generate_embedding(req.text)
+		print(f"✅ Embedding生成完了 (次元数: {len(embedding)})")
+
 		# Supabaseに新しい参照例を挿入
 		data = {
 			"reference_id": new_id,
 			"type": req.type,
 			"text": req.text,
-			"tags": req.tags,
-			"source": req.source or "professor_custom"
+			"tags": tags,
+			"source": req.source or "professor_custom",
+			"content_type": "thought",  # デフォルトは教授の思考
+			"embedding": embedding
 		}
 
 		insert_response = supabase.table("knowledge_base").insert(data).execute()
@@ -1295,8 +1385,9 @@ async def create_reference(req: ReferenceCreateRequest, user: dict = Depends(ver
 			"id": new_id,
 			"type": req.type,
 			"text": req.text,
-			"tags": req.tags,
-			"source": req.source or "professor_custom"
+			"tags": tags,
+			"source": req.source or "professor_custom",
+			"auto_tagged": not req.tags or len(req.tags) == 0
 		}
 
 		return {"success": True, "reference": new_reference}
@@ -1307,7 +1398,7 @@ async def create_reference(req: ReferenceCreateRequest, user: dict = Depends(ver
 
 @app.put("/references/{reference_id}")
 async def update_reference(reference_id: str, req: ReferenceUpdateRequest, user: dict = Depends(verify_jwt)):
-	"""参照例を更新"""
+	"""参照例を更新（Phase 2: Embedding再生成対応）"""
 	if not supabase:
 		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
 
@@ -1325,6 +1416,13 @@ async def update_reference(reference_id: str, req: ReferenceUpdateRequest, user:
 
 		if not update_data:
 			raise HTTPException(status_code=400, detail="更新するデータがありません")
+
+		# テキストが更新された場合、Embeddingを再生成
+		if req.text is not None:
+			from .utils.embedding import generate_embedding
+			embedding = generate_embedding(req.text)
+			update_data["embedding"] = embedding
+			print(f"✅ Embedding再生成完了 (次元数: {len(embedding)})")
 
 		# Supabaseで更新
 		response = supabase.table("knowledge_base").update(update_data).eq("reference_id", reference_id).execute()
