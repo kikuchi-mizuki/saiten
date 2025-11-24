@@ -1471,10 +1471,18 @@ async def delete_reference(reference_id: str, user: dict = Depends(verify_jwt)):
 
 
 @app.post("/upload-file")
-async def upload_file(file: UploadFile = File(...), user: dict = Depends(verify_jwt)):
+async def upload_file(
+	file: UploadFile = File(...),
+	split_by_topic: bool = False,
+	user: dict = Depends(verify_jwt)
+):
 	"""
 	音声/テキストファイルをアップロードしてテキスト抽出
-	Phase 2 Week 5-6: ファイルアップロード機能
+	Phase 2 Week 5-6: ファイルアップロード機能 + LLM分割機能
+
+	Args:
+		file: アップロードファイル
+		split_by_topic: LLMで意味のあるまとまりに分割するか（デフォルト: False）
 	"""
 	if not supabase:
 		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
@@ -1485,10 +1493,10 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(verify_
 	try:
 		if file_extension in ['mp3', 'wav', 'm4a']:
 			# 音声ファイル処理
-			return await handle_audio_file(file)
+			return await handle_audio_file(file, split_by_topic)
 		elif file_extension == 'txt':
 			# テキストファイル処理
-			return await handle_text_file(file)
+			return await handle_text_file(file, split_by_topic)
 		else:
 			raise HTTPException(status_code=400, detail=f"対応していないファイル形式です。mp3, wav, m4a, txt のみ対応しています。")
 	except HTTPException:
@@ -1498,10 +1506,11 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(verify_
 		raise HTTPException(status_code=500, detail=f"ファイルの処理に失敗しました: {str(e)}")
 
 
-async def handle_audio_file(file: UploadFile):
-	"""音声ファイルの処理（Whisper API）"""
+async def handle_audio_file(file: UploadFile, split_by_topic: bool = False):
+	"""音声ファイルの処理（Whisper API + オプションでLLM分割）"""
 	from openai import OpenAI
 	from .utils.tagging import generate_tags
+	from .utils.text_splitter import split_text_by_topic
 
 	client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -1528,7 +1537,7 @@ async def handle_audio_file(file: UploadFile):
 		# 一時ファイル削除
 		os.remove(audio_path)
 
-		# タグ生成
+		# タグ生成（全体のタグ）
 		existing_tags_response = supabase.table("knowledge_base").select("tags").limit(100).execute()
 		all_existing_tags = []
 		for item in existing_tags_response.data:
@@ -1536,16 +1545,33 @@ async def handle_audio_file(file: UploadFile):
 				all_existing_tags.extend(item["tags"])
 		unique_tags = list(set(all_existing_tags))
 
-		suggested_tags = generate_tags(extracted_text, unique_tags)
+		suggested_tags = generate_tags(extracted_text[:1000], unique_tags)  # 最初の1000文字から生成
 		print(f"🏷️  自動タグ生成: {suggested_tags}")
 
-		return {
-			"success": True,
-			"text": extracted_text,
-			"suggested_tags": suggested_tags,
-			"file_type": "audio",
-			"filename": file.filename
-		}
+		# LLMで分割する場合
+		if split_by_topic:
+			print(f"🔀 LLMで意味のあるまとまりに分割中...")
+			sections = split_text_by_topic(extracted_text)
+			print(f"✅ {len(sections)}個のセクションに分割しました")
+
+			return {
+				"success": True,
+				"text": extracted_text,  # 全文も返す
+				"sections": sections,  # 分割されたセクション
+				"suggested_tags": suggested_tags,
+				"file_type": "audio",
+				"filename": file.filename,
+				"split": True
+			}
+		else:
+			return {
+				"success": True,
+				"text": extracted_text,
+				"suggested_tags": suggested_tags,
+				"file_type": "audio",
+				"filename": file.filename,
+				"split": False
+			}
 
 	except Exception as e:
 		print(f"❌ 音声処理エラー: {e}")
@@ -1554,9 +1580,10 @@ async def handle_audio_file(file: UploadFile):
 		raise HTTPException(status_code=500, detail=f"音声変換に失敗しました: {str(e)}")
 
 
-async def handle_text_file(file: UploadFile):
-	"""テキストファイルの処理"""
+async def handle_text_file(file: UploadFile, split_by_topic: bool = False):
+	"""テキストファイルの処理（オプションでLLM分割）"""
 	from .utils.tagging import generate_tags
+	from .utils.text_splitter import split_text_by_topic
 
 	try:
 		# ファイル内容を読み込み
@@ -1578,7 +1605,7 @@ async def handle_text_file(file: UploadFile):
 
 		print(f"✅ テキストファイル読み込み完了 ({len(text)}文字)")
 
-		# タグ生成
+		# タグ生成（全体のタグ）
 		existing_tags_response = supabase.table("knowledge_base").select("tags").limit(100).execute()
 		all_existing_tags = []
 		for item in existing_tags_response.data:
@@ -1586,20 +1613,33 @@ async def handle_text_file(file: UploadFile):
 				all_existing_tags.extend(item["tags"])
 		unique_tags = list(set(all_existing_tags))
 
-		suggested_tags = generate_tags(text, unique_tags)
+		suggested_tags = generate_tags(text[:1000], unique_tags)  # 最初の1000文字から生成
 		print(f"🏷️  自動タグ生成: {suggested_tags}")
 
-		return {
-			"success": True,
-			"text": text,
-			"suggested_tags": suggested_tags,
-			"file_type": "text",
-			"filename": file.filename
-		}
+		# LLMで分割する場合
+		if split_by_topic:
+			print(f"🔀 LLMで意味のあるまとまりに分割中...")
+			sections = split_text_by_topic(text)
+			print(f"✅ {len(sections)}個のセクションに分割しました")
 
-	except Exception as e:
-		print(f"❌ テキストファイル処理エラー: {e}")
-		raise HTTPException(status_code=500, detail=f"テキストファイルの読み込みに失敗しました: {str(e)}")
+			return {
+				"success": True,
+				"text": text,  # 全文も返す
+				"sections": sections,  # 分割されたセクション
+				"suggested_tags": suggested_tags,
+				"file_type": "text",
+				"filename": file.filename,
+				"split": True
+			}
+		else:
+			return {
+				"success": True,
+				"text": text,
+				"suggested_tags": suggested_tags,
+				"file_type": "text",
+				"filename": file.filename,
+				"split": False
+			}
 
 
 @app.post("/references/from-feedback")
