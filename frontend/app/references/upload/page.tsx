@@ -301,7 +301,7 @@ export default function UploadFilePage() {
                   }}
                 />
               </label>
-              <p className="text-[12px] mt-6" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-[12px] mt-6 text-center" style={{ color: 'var(--text-muted)' }}>
                 対応形式:<br />
                 • 音声: mp3, wav, m4a（最大100MB）<br />
                 • テキスト: txt（最大1MB）
