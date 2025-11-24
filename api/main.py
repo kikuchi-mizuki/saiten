@@ -1528,33 +1528,61 @@ async def handle_audio_file(file: UploadFile, split_by_topic: bool = False):
 		if len(content) > MAX_WHISPER_SIZE:
 			print(f"⚠️  ファイルサイズが25MBを超えています。圧縮中...")
 			try:
-				from pydub import AudioSegment
-
-				# 音声ファイルを読み込み
-				audio = AudioSegment.from_file(audio_path)
+				import subprocess
 
 				# 圧縮した一時ファイルパス
-				compressed_path = f"/tmp/compressed_{file.filename}"
+				compressed_path = f"/tmp/compressed_{file.filename.replace(' ', '_')}"
 
-				# 低ビットレートでエクスポート（音声認識には64kbpsで十分）
-				audio.export(
-					compressed_path,
-					format="mp3",
-					bitrate="64k",
-					parameters=["-ac", "1"]  # モノラルに変換
+				# ffmpegで直接圧縮（pydubを使わない）
+				# -i: 入力ファイル
+				# -b:a 64k: オーディオビットレート64kbps
+				# -ac 1: モノラル
+				# -y: 上書き確認なし
+				result = subprocess.run(
+					[
+						'ffmpeg',
+						'-i', audio_path,
+						'-b:a', '64k',
+						'-ac', '1',
+						'-y',
+						compressed_path
+					],
+					capture_output=True,
+					text=True
 				)
+
+				if result.returncode != 0:
+					raise Exception(f"ffmpeg error: {result.stderr}")
 
 				# 圧縮後のサイズを確認
 				compressed_size = os.path.getsize(compressed_path)
 				print(f"✅ 圧縮完了: {len(content)} bytes → {compressed_size} bytes ({compressed_size / len(content) * 100:.1f}%)")
 
+				# 圧縮後もまだ25MBを超える場合はエラー
+				if compressed_size > MAX_WHISPER_SIZE:
+					os.remove(audio_path)
+					os.remove(compressed_path)
+					raise HTTPException(
+						status_code=400,
+						detail=f"圧縮後もファイルサイズが25MBを超えています（{compressed_size / 1024 / 1024:.1f}MB）。より短いファイルをアップロードしてください。"
+					)
+
 				# 元のファイルを削除し、圧縮ファイルを使用
 				os.remove(audio_path)
 				audio_path = compressed_path
 
+			except HTTPException:
+				raise
 			except Exception as e:
 				print(f"⚠️  圧縮失敗: {e}")
-				print(f"元のファイルで処理を続行します")
+				# 圧縮失敗時、ファイルが25MB超ならエラーを返す
+				if len(content) > MAX_WHISPER_SIZE:
+					if os.path.exists(audio_path):
+						os.remove(audio_path)
+					raise HTTPException(
+						status_code=400,
+						detail=f"ファイルサイズが大きすぎます（{len(content) / 1024 / 1024:.1f}MB）。Whisper APIは最大25MBまでです。"
+					)
 
 		# Whisper APIで変換
 		with open(audio_path, "rb") as audio_file:
