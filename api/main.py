@@ -1641,6 +1641,10 @@ async def handle_text_file(file: UploadFile, split_by_topic: bool = False):
 				"split": False
 			}
 
+	except Exception as e:
+		print(f"❌ テキスト処理エラー: {e}")
+		raise HTTPException(status_code=500, detail=f"テキストファイルの処理に失敗しました: {str(e)}")
+
 
 @app.post("/references/from-feedback")
 async def create_reference_from_feedback(
