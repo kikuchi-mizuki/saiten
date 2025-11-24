@@ -225,18 +225,32 @@ export default function UploadFilePage() {
           <h1 className="text-[18px] font-semibold" style={{ color: 'var(--text)' }}>
             ファイルアップロード
           </h1>
-          <Link href="/references" className="px-4 py-2 rounded text-[13px]" style={{ color: 'var(--text-subtle)' }}>
+          <Link
+            href="/references"
+            className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
+            style={{
+              backgroundColor: 'var(--surface-subtle)',
+              color: 'var(--text)',
+              border: '1px solid var(--border)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--surface-subtle)'
+            }}
+          >
             ← 戻る
           </Link>
         </div>
       </header>
 
       {/* メインコンテンツ */}
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-8">
         {!selectedFile && !extractedText && (
           <>
             {/* 分割オプション */}
-            <div className="mb-6 p-4 border rounded" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+            <div className="mb-6 p-4 border rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -257,7 +271,7 @@ export default function UploadFilePage() {
 
             {/* ファイル選択エリア */}
             <div
-              className={`text-center p-12 border-2 border-dashed rounded ${isDragging ? 'bg-blue-50' : ''}`}
+              className={`text-center p-12 border-2 border-dashed rounded-[var(--radius-sm)] ${isDragging ? 'bg-blue-50' : ''}`}
               style={{
                 borderColor: isDragging ? 'var(--accent)' : 'var(--border)',
                 backgroundColor: isDragging ? 'var(--surface-hover)' : 'var(--surface)'
@@ -274,7 +288,7 @@ export default function UploadFilePage() {
               <p className="text-[14px] mb-6" style={{ color: 'var(--text-subtle)' }}>
                 または
               </p>
-              <label className="px-6 py-3 rounded text-[16px] cursor-pointer inline-block" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+              <label className="px-6 py-3 rounded-[var(--radius-sm)] text-[14px] font-medium cursor-pointer inline-block transition hover:opacity-90" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
                 📎 ファイルを選択
                 <input
                   type="file"
@@ -297,7 +311,7 @@ export default function UploadFilePage() {
         )}
 
         {selectedFile && !extractedText && (
-          <div className="text-center p-12 border rounded" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <div className="text-center p-12 border rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
             <div className="text-[48px] mb-4">✅</div>
             <p className="text-[18px] mb-2" style={{ color: 'var(--text)' }}>
               ファイル選択: {selectedFile.name}
@@ -312,7 +326,7 @@ export default function UploadFilePage() {
             {!isUploading && (
               <button
                 onClick={handleUpload}
-                className="px-6 py-3 rounded text-[16px]"
+                className="px-6 py-3 rounded-[var(--radius-sm)] text-[14px] font-medium transition hover:opacity-90"
                 style={{ backgroundColor: 'var(--accent)', color: 'white' }}
               >
                 🚀 アップロード開始
@@ -344,7 +358,7 @@ export default function UploadFilePage() {
 
         {extractedText && isSplit && sections.length > 0 && (
           <div>
-            <div className="mb-6 p-4 border rounded" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+            <div className="mb-6 p-4 border rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
               <h2 className="text-[16px] font-semibold mb-2" style={{ color: 'var(--text)' }}>
                 ✅ {sections.length}個のセクションに分割しました
               </h2>
@@ -354,7 +368,7 @@ export default function UploadFilePage() {
               <div className="flex gap-4">
                 <button
                   onClick={handleSaveAllSections}
-                  className="px-6 py-2 rounded"
+                  className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition hover:opacity-90"
                   style={{ backgroundColor: 'var(--accent)', color: 'white' }}
                 >
                   すべてのセクションを一括保存
@@ -366,8 +380,18 @@ export default function UploadFilePage() {
                     setSections([])
                     setSuggestedTags([])
                   }}
-                  className="px-6 py-2 rounded border"
-                  style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+                  className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
+                  style={{
+                    backgroundColor: 'var(--surface-subtle)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--surface-subtle)'
+                  }}
                 >
                   やり直し
                 </button>
@@ -377,11 +401,11 @@ export default function UploadFilePage() {
             {/* セクション一覧 */}
             <div className="space-y-6">
               {sections.map((section, index) => (
-                <div key={index} className="p-6 border rounded" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+                <div key={index} className="p-6 border rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
                   <h3 className="text-[16px] font-semibold mb-3" style={{ color: 'var(--text)' }}>
                     セクション{index + 1}: {section.title}
                   </h3>
-                  <div className="mb-4 p-4 rounded text-[14px] leading-relaxed" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
+                  <div className="mb-4 p-4 rounded-[var(--radius-sm)] text-[14px] leading-relaxed" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
                     {section.content.substring(0, 300)}
                     {section.content.length > 300 && '...'}
                     <div className="mt-2 text-[12px]" style={{ color: 'var(--text-muted)' }}>
@@ -390,7 +414,7 @@ export default function UploadFilePage() {
                   </div>
                   <button
                     onClick={() => handleSaveSection(section, index)}
-                    className="px-4 py-2 rounded text-[14px]"
+                    className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition hover:opacity-90"
                     style={{ backgroundColor: 'var(--accent)', color: 'white' }}
                   >
                     このセクションを保存
@@ -402,13 +426,13 @@ export default function UploadFilePage() {
         )}
 
         {extractedText && !isSplit && (
-          <div className="p-6 border rounded" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <div className="p-6 border rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
             <p className="text-[14px] mb-2" style={{ color: 'var(--text)' }}>抽出されたテキスト:</p>
             <textarea
               value={extractedText}
               onChange={(e) => setExtractedText(e.target.value)}
-              className="w-full h-64 p-3 border rounded mb-4"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              className="w-full h-64 p-3 border rounded-[var(--radius-sm)] mb-4"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)', backgroundColor: 'var(--bg)' }}
             />
 
             <p className="text-[14px] mb-2" style={{ color: 'var(--text)' }}>提案タグ:</p>
@@ -416,8 +440,8 @@ export default function UploadFilePage() {
               {suggestedTags.map((tag, index) => (
                 <span
                   key={index}
-                  className="px-3 py-1 text-[13px] rounded border"
-                  style={{ backgroundColor: 'var(--surface-subtle)', borderColor: 'var(--border)' }}
+                  className="px-3 py-1 text-[13px] rounded-[var(--radius-sm)] border"
+                  style={{ backgroundColor: 'var(--surface-subtle)', borderColor: 'var(--border)', color: 'var(--text)' }}
                 >
                   {tag}
                 </span>
@@ -427,7 +451,7 @@ export default function UploadFilePage() {
             <div className="mt-4 flex gap-4">
               <button
                 onClick={handleSaveToKnowledgeBase}
-                className="px-6 py-2 rounded"
+                className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition hover:opacity-90"
                 style={{ backgroundColor: 'var(--accent)', color: 'white' }}
               >
                 ナレッジベースに保存
@@ -439,8 +463,18 @@ export default function UploadFilePage() {
                   setSuggestedTags([])
                   setFileType(null)
                 }}
-                className="px-6 py-2 rounded border"
-                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+                className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
+                style={{
+                  backgroundColor: 'var(--surface-subtle)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--bg)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--surface-subtle)'
+                }}
               >
                 やり直し
               </button>
