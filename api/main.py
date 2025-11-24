@@ -489,7 +489,7 @@ def retrieve_refs(text: str, doc_type: str, k: int = 5) -> List[str]:
 	"""
 	try:
 		# Embedding生成
-		from utils.embedding import generate_embedding
+		from .utils.embedding import generate_embedding
 		query_embedding = generate_embedding(text)
 
 		# Supabaseでベクトル検索
@@ -509,8 +509,8 @@ def retrieve_refs(text: str, doc_type: str, k: int = 5) -> List[str]:
 		return [item["text"] for item in filtered[:k]]
 
 	except Exception as e:
-		print(f"Embedding検索エラー: {e}")
-		print("フォールバック: Jaccard類似度検索を使用")
+		# エラー時はJaccard検索にフォールバック
+		print(f"⚠️ Embedding検索エラー ({e.__class__.__name__}), Jaccard検索を使用")
 		# フォールバック: 既存のJaccard検索
 		samples = load_samples()
 		toks = tokenize(text)
@@ -525,7 +525,7 @@ def load_prompt(doc_type: str) -> str:
 
 
 def build_comment(req: GenerateRequest) -> GenerateResponse:
-	refs = retrieve_refs(req.text, req.type, k=2)
+	refs = retrieve_refs(req.text, req.type, k=5)  # Phase 2: 参照例を2件→5件に増加
 	prefix = "○ " if req.type == "reflection" else ""
 	length = req.options.length if req.options else 400
 	tone = req.options.tone if req.options else "温かめ"
@@ -1004,7 +1004,7 @@ async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt
 	masked_text, detected_pii = pii_detector.detect_and_mask(req.text)
 
 	# 2. マスキング後のテキストで処理を実行
-	refs = retrieve_refs(masked_text, doc_type, k=2)
+	refs = retrieve_refs(masked_text, doc_type, k=5)  # Phase 2: 参照例を2件→5件に増加
 	scores = simple_score(masked_text)
 	llm_used = False
 	llm_error = None
