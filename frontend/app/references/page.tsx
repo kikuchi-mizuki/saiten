@@ -230,6 +230,23 @@ export default function ReferencesPage() {
 
           <div className="flex items-center gap-4">
             <Link
+              href="/references/upload"
+              className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
+              style={{
+                backgroundColor: 'var(--accent)',
+                color: 'white',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '0.9'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '1'
+              }}
+            >
+              📎 ファイルアップロード
+            </Link>
+
+            <Link
               href="/dashboard"
               className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
               style={{

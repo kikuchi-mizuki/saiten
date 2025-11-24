@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -13,6 +13,7 @@ import base64
 import hashlib
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from supabase import create_client, Client
+import chardet
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SAMPLE_PATH = ROOT / "data" / "sample_comments.json"
@@ -1467,6 +1468,138 @@ async def delete_reference(reference_id: str, user: dict = Depends(verify_jwt)):
 		raise
 	except Exception as e:
 		raise HTTPException(status_code=500, detail=f"参照例の削除に失敗しました: {str(e)}")
+
+
+@app.post("/upload-file")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(verify_jwt)):
+	"""
+	音声/テキストファイルをアップロードしてテキスト抽出
+	Phase 2 Week 5-6: ファイルアップロード機能
+	"""
+	if not supabase:
+		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
+
+	# ファイルタイプ判定
+	file_extension = file.filename.split('.')[-1].lower() if file.filename and '.' in file.filename else ''
+
+	try:
+		if file_extension in ['mp3', 'wav', 'm4a']:
+			# 音声ファイル処理
+			return await handle_audio_file(file)
+		elif file_extension == 'txt':
+			# テキストファイル処理
+			return await handle_text_file(file)
+		else:
+			raise HTTPException(status_code=400, detail=f"対応していないファイル形式です。mp3, wav, m4a, txt のみ対応しています。")
+	except HTTPException:
+		raise
+	except Exception as e:
+		print(f"❌ ファイル処理エラー: {e}")
+		raise HTTPException(status_code=500, detail=f"ファイルの処理に失敗しました: {str(e)}")
+
+
+async def handle_audio_file(file: UploadFile):
+	"""音声ファイルの処理（Whisper API）"""
+	from openai import OpenAI
+	from .utils.tagging import generate_tags
+
+	client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+	# 一時保存
+	audio_path = f"/tmp/{file.filename}"
+	try:
+		with open(audio_path, "wb") as f:
+			content = await file.read()
+			f.write(content)
+
+		print(f"🎤 音声ファイルをアップロード: {file.filename} ({len(content)} bytes)")
+
+		# Whisper APIで変換
+		with open(audio_path, "rb") as audio_file:
+			transcript = client.audio.transcriptions.create(
+				model="whisper-1",
+				file=audio_file,
+				language="ja"
+			)
+
+		extracted_text = transcript.text
+		print(f"✅ Whisper API変換完了 ({len(extracted_text)}文字)")
+
+		# 一時ファイル削除
+		os.remove(audio_path)
+
+		# タグ生成
+		existing_tags_response = supabase.table("knowledge_base").select("tags").limit(100).execute()
+		all_existing_tags = []
+		for item in existing_tags_response.data:
+			if item.get("tags"):
+				all_existing_tags.extend(item["tags"])
+		unique_tags = list(set(all_existing_tags))
+
+		suggested_tags = generate_tags(extracted_text, unique_tags)
+		print(f"🏷️  自動タグ生成: {suggested_tags}")
+
+		return {
+			"success": True,
+			"text": extracted_text,
+			"suggested_tags": suggested_tags,
+			"file_type": "audio",
+			"filename": file.filename
+		}
+
+	except Exception as e:
+		print(f"❌ 音声処理エラー: {e}")
+		if os.path.exists(audio_path):
+			os.remove(audio_path)
+		raise HTTPException(status_code=500, detail=f"音声変換に失敗しました: {str(e)}")
+
+
+async def handle_text_file(file: UploadFile):
+	"""テキストファイルの処理"""
+	from .utils.tagging import generate_tags
+
+	try:
+		# ファイル内容を読み込み
+		content = await file.read()
+		print(f"📄 テキストファイルをアップロード: {file.filename} ({len(content)} bytes)")
+
+		# 文字コード自動検出
+		detected = chardet.detect(content)
+		encoding = detected['encoding'] or 'utf-8'
+		print(f"🔍 検出された文字コード: {encoding}")
+
+		# デコード
+		try:
+			text = content.decode(encoding)
+		except UnicodeDecodeError:
+			# フォールバック: UTF-8で試行
+			print(f"⚠️ {encoding}でのデコード失敗、UTF-8で再試行")
+			text = content.decode('utf-8', errors='ignore')
+
+		print(f"✅ テキストファイル読み込み完了 ({len(text)}文字)")
+
+		# タグ生成
+		existing_tags_response = supabase.table("knowledge_base").select("tags").limit(100).execute()
+		all_existing_tags = []
+		for item in existing_tags_response.data:
+			if item.get("tags"):
+				all_existing_tags.extend(item["tags"])
+		unique_tags = list(set(all_existing_tags))
+
+		suggested_tags = generate_tags(text, unique_tags)
+		print(f"🏷️  自動タグ生成: {suggested_tags}")
+
+		return {
+			"success": True,
+			"text": text,
+			"suggested_tags": suggested_tags,
+			"file_type": "text",
+			"filename": file.filename
+		}
+
+	except Exception as e:
+		print(f"❌ テキストファイル処理エラー: {e}")
+		raise HTTPException(status_code=500, detail=f"テキストファイルの読み込みに失敗しました: {str(e)}")
 
 
 @app.post("/references/from-feedback")
