@@ -298,14 +298,6 @@ export default function HistoryPage() {
                       >
                         {new Date(item.feedback.created_at).toLocaleString('ja-JP')}
                       </p>
-                      {item.report && (
-                        <p
-                          className="text-[14px] font-medium"
-                          style={{ color: 'var(--text)' }}
-                        >
-                          {item.report.student_id ? `学生ID: ${item.report.student_id}` : '学生ID未設定'}
-                        </p>
-                      )}
                     </div>
                     <div className="text-right">
                       <p

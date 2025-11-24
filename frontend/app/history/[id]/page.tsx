@@ -283,23 +283,6 @@ export default function HistoryDetailPage() {
                 </p>
               </div>
 
-              {history.report?.student_id && (
-                <div className="mb-4">
-                  <p
-                    className="text-[12px] mb-1"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    学生ID
-                  </p>
-                  <p
-                    className="text-[14px] font-medium"
-                    style={{ color: 'var(--text)' }}
-                  >
-                    {history.report.student_id}
-                  </p>
-                </div>
-              )}
-
               <div className="mb-4">
                 <p
                   className="text-[12px] mb-2"
