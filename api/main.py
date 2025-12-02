@@ -696,16 +696,60 @@ def call_openai_summary(prompt: str, system_prompt: str = None) -> Tuple[Optiona
 		return None, f"予期しないエラー: {str(e)}"
 
 
-def generate_summary_llm(text: str) -> Tuple[Dict[str, any], bool]:
+def generate_summary_llm(text: str, doc_type: str = "reflection") -> Tuple[Dict[str, any], bool]:
 	"""LLMを使用してレポートの要約を要点ごとに整理した形式で生成
+	Args:
+		text: レポート本文
+		doc_type: レポートタイプ ("reflection" or "final")
 	Returns: (summary_dict, llm_actually_used)
 	"""
 	if not USE_LLM or not OPENAI_API_KEY:
 		return generate_summary_fallback(text), False
 	
 	try:
-		# 要点ごとに整理された要約を生成するプロンプト
-		summary_prompt = f"""以下の学生レポートを読んで、要点がわかりやすく伝わるように要約してください。
+		# レポートタイプによってプロンプトを切り替え
+		if doc_type == "final":
+			# 最終レポート用：指定された観点で要約
+			summary_prompt = f"""以下の学生が提出した最終レポートを読んで、以下の観点で要約してください。
+
+【レポート】
+{text}
+
+【出力形式】
+以下の観点に沿って要約を作成してください：
+
+1️⃣ 自分が関わっている事業・組織の目指す姿
+
+[学生のレポートから、事業や組織が目指す姿・ビジョンを抽出してまとめてください。]
+
+2️⃣ 本質的課題：めざす姿と現状のギャップ
+
+[目指す姿と現状の間にあるギャップ（本質的な課題）を明確に記述してください。]
+
+3️⃣ ギャップを埋めるための具体的施策
+
+[ギャップを埋めるために学生が提案している具体的な施策を、以下の観点でまとめてください：]
+- **講義内容の応用**：講義で学んだ内容をどのように応用しているか
+- **時間軸**：短期・中期・長期などの時間軸を意識した施策の展開
+
+4️⃣ 実践するにあたっての課題とその解決策の仮説
+
+[施策を実践する際に想定される課題と、それに対する解決策の仮説をまとめてください。]
+
+【結論】
+[レポート全体の総括：学生の主張や気づきを簡潔にまとめてください。]
+
+【注意事項】
+- 文体は「です・ます」調で統一してください
+- 重要なキーワードや概念は**太字**で強調してください
+- 各セクションは読みやすく、要点が明確になるように構成してください
+- レポートに記載されている内容を基に要約し、記載がない観点については「記載なし」または簡潔に省略してください
+- 読み手がレポートの内容をすぐに理解できるように、明確で具体的な表現を使ってください
+
+要約を出力してください:"""
+		else:
+			# 振り返りレポート用：従来の要点整理型要約
+			summary_prompt = f"""以下の学生レポートを読んで、要点がわかりやすく伝わるように要約してください。
 
 【レポート】
 {text}
@@ -722,7 +766,7 @@ def generate_summary_llm(text: str) -> Tuple[Dict[str, any], bool]:
 [セクションの内容：重要なポイントを分かりやすく説明。必要に応じて箇条書きも使用可。]
 
 最後に「結論」セクションを追加：
-[結論]
+【結論】
 [レポートの結論や総括：学生の主張や気づきをまとめる。]
 
 【注意事項】
@@ -837,8 +881,11 @@ def generate_summary_fallback(text: str) -> Dict[str, any]:
 	}
 
 
-def generate_summary(text: str) -> Tuple[Dict[str, any], bool, Optional[str]]:
+def generate_summary(text: str, doc_type: str = "reflection") -> Tuple[Dict[str, any], bool, Optional[str]]:
 	"""レポートの要約を3形式で生成（常にLLM使用）
+	Args:
+		text: レポート本文
+		doc_type: レポートタイプ ("reflection" or "final")
 	Returns: (summary_dict, llm_used_for_summary, error_message)
 	"""
 	if not OPENAI_API_KEY:
@@ -849,7 +896,7 @@ def generate_summary(text: str) -> Tuple[Dict[str, any], bool, Optional[str]]:
 			"structured": {},
 			"formatted": error_msg,
 		}, False, error_msg
-	
+
 	if not USE_LLM:
 		error_msg = "LLMが無効になっています。環境変数USE_LLM=1を設定してください。"
 		return {
@@ -858,9 +905,9 @@ def generate_summary(text: str) -> Tuple[Dict[str, any], bool, Optional[str]]:
 			"structured": {},
 			"formatted": error_msg,
 		}, False, error_msg
-	
+
 	try:
-		summary_result, llm_used = generate_summary_llm(text)
+		summary_result, llm_used = generate_summary_llm(text, doc_type)
 		return summary_result, llm_used, None
 	except Exception as e:
 		error_msg = f"要約生成中にエラーが発生しました: {str(e)}"
@@ -1033,7 +1080,7 @@ async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt
 			])
 
 	# 4. 要約生成（常にLLM使用、マスキング後のテキストを使用）
-	summary, summary_llm_used, summary_error = generate_summary(masked_text)
+	summary, summary_llm_used, summary_error = generate_summary(masked_text, doc_type)
 
 	return {
 		"report_id": None,
