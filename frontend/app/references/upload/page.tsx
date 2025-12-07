@@ -34,6 +34,9 @@ export default function UploadFilePage() {
   const [sections, setSections] = useState<Section[]>([])
   const [isSplit, setIsSplit] = useState(false)
   const [selectedSections, setSelectedSections] = useState<Set<number>>(new Set())
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set())
+  const [editingSections, setEditingSections] = useState<Set<number>>(new Set())
+  const [editedContents, setEditedContents] = useState<Map<number, string>>(new Map())
 
   useEffect(() => {
     async function checkAuth() {
@@ -141,6 +144,8 @@ export default function UploadFilePage() {
   async function handleSaveSection(section: Section, index: number) {
     try {
       const token = await getAccessToken()
+      const effectiveContent = getEffectiveContent(index) // 編集済みの内容を使用
+
       const response = await fetch(`${API_BASE}/references`, {
         method: 'POST',
         headers: {
@@ -148,7 +153,7 @@ export default function UploadFilePage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          text: section.content,
+          text: effectiveContent, // 編集済みの内容を保存
           tags: [...suggestedTags, section.title], // 全体タグ + セクションタイトル
           type: contentType, // ユーザーが選択したコンテンツタイプを使用
           source: fileType === 'audio' ? 'audio_upload' : 'text_upload'
@@ -222,6 +227,46 @@ export default function UploadFilePage() {
     } else {
       setSelectedSections(new Set(sections.map((_, i) => i)))
     }
+  }
+
+  // セクションの展開/折りたたみ
+  function toggleSectionExpansion(index: number) {
+    const newExpanded = new Set(expandedSections)
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index)
+    } else {
+      newExpanded.add(index)
+    }
+    setExpandedSections(newExpanded)
+  }
+
+  // 編集モードの切り替え
+  function toggleEditMode(index: number) {
+    const newEditing = new Set(editingSections)
+    if (newEditing.has(index)) {
+      newEditing.delete(index)
+    } else {
+      newEditing.add(index)
+      // 編集開始時に現在の内容（または編集済みの内容）を設定
+      if (!editedContents.has(index)) {
+        const newContents = new Map(editedContents)
+        newContents.set(index, sections[index].content)
+        setEditedContents(newContents)
+      }
+    }
+    setEditingSections(newEditing)
+  }
+
+  // セクション内容の更新
+  function updateSectionContent(index: number, newContent: string) {
+    const newContents = new Map(editedContents)
+    newContents.set(index, newContent)
+    setEditedContents(newContents)
+  }
+
+  // 編集内容を反映したセクションを取得
+  function getEffectiveContent(index: number): string {
+    return editedContents.get(index) || sections[index].content
   }
 
   // ナレッジベースに保存（分割なしの場合）
@@ -507,11 +552,49 @@ export default function UploadFilePage() {
                       </h3>
                     </div>
                   </div>
-                  <div className="ml-9 mb-4 p-4 rounded-[var(--radius-sm)] text-[14px] leading-relaxed" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
-                    {section.content.substring(0, 300)}
-                    {section.content.length > 300 && '...'}
-                    <div className="mt-2 text-[12px]" style={{ color: 'var(--text-muted)' }}>
-                      {section.content.length}文字
+                  <div className="ml-9 mb-4">
+                    {editingSections.has(index) ? (
+                      <textarea
+                        value={getEffectiveContent(index)}
+                        onChange={(e) => updateSectionContent(index, e.target.value)}
+                        className="w-full p-4 rounded-[var(--radius-sm)] text-[14px] leading-relaxed border"
+                        style={{
+                          backgroundColor: 'var(--bg)',
+                          color: 'var(--text)',
+                          borderColor: 'var(--accent)',
+                          minHeight: '200px'
+                        }}
+                        placeholder="不要な部分を削除してください（パーソナリティの発言など）"
+                      />
+                    ) : (
+                      <div className="p-4 rounded-[var(--radius-sm)] text-[14px] leading-relaxed whitespace-pre-wrap" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
+                        {expandedSections.has(index) ? getEffectiveContent(index) : getEffectiveContent(index).substring(0, 300)}
+                        {!expandedSections.has(index) && getEffectiveContent(index).length > 300 && '...'}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                        {getEffectiveContent(index).length}文字
+                        {editedContents.has(index) && ' (編集済み)'}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => toggleEditMode(index)}
+                          className="text-[13px] font-medium transition hover:opacity-70"
+                          style={{ color: 'var(--accent)' }}
+                        >
+                          {editingSections.has(index) ? '✓ 編集完了' : '✏️ 編集'}
+                        </button>
+                        {!editingSections.has(index) && getEffectiveContent(index).length > 300 && (
+                          <button
+                            onClick={() => toggleSectionExpansion(index)}
+                            className="text-[13px] font-medium transition hover:opacity-70"
+                            style={{ color: 'var(--accent)' }}
+                          >
+                            {expandedSections.has(index) ? '▲ 折りたたむ' : '▼ 全文を読む'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="ml-9">
