@@ -33,6 +33,7 @@ export default function UploadFilePage() {
   const [fileType, setFileType] = useState<'audio' | 'text' | null>(null)
   const [sections, setSections] = useState<Section[]>([])
   const [isSplit, setIsSplit] = useState(false)
+  const [selectedSections, setSelectedSections] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     async function checkAuth() {
@@ -179,6 +180,47 @@ export default function UploadFilePage() {
     } catch (error) {
       console.error('Save all error:', error)
       alert('一括保存に失敗しました')
+    }
+  }
+
+  // 選択したセクションのみ保存
+  async function handleSaveSelectedSections() {
+    if (selectedSections.size === 0) {
+      alert('保存するセクションを選択してください')
+      return
+    }
+
+    try {
+      const selectedIndexes = Array.from(selectedSections).sort((a, b) => a - b)
+      for (const index of selectedIndexes) {
+        await handleSaveSection(sections[index], index)
+      }
+
+      alert(`${selectedSections.size}個の選択されたセクションを保存しました！`)
+      router.push('/references')
+    } catch (error) {
+      console.error('Save selected error:', error)
+      alert('選択したセクションの保存に失敗しました')
+    }
+  }
+
+  // チェックボックスのトグル
+  function toggleSectionSelection(index: number) {
+    const newSelected = new Set(selectedSections)
+    if (newSelected.has(index)) {
+      newSelected.delete(index)
+    } else {
+      newSelected.add(index)
+    }
+    setSelectedSections(newSelected)
+  }
+
+  // すべて選択/解除
+  function toggleSelectAll() {
+    if (selectedSections.size === sections.length) {
+      setSelectedSections(new Set())
+    } else {
+      setSelectedSections(new Set(sections.map((_, i) => i)))
     }
   }
 
@@ -364,15 +406,54 @@ export default function UploadFilePage() {
                 ✅ {sections.length}個のセクションに分割しました
               </h2>
               <p className="text-[14px] mb-4" style={{ color: 'var(--text-subtle)' }}>
-                各セクションを個別に確認・保存できます
+                保存したいセクションにチェックを入れてください（教授の発言のみ選択可能）
               </p>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={toggleSelectAll}
+                  className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
+                  style={{
+                    backgroundColor: 'var(--surface-subtle)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--surface-subtle)'
+                  }}
+                >
+                  {selectedSections.size === sections.length ? '✓ すべて解除' : '☐ すべて選択'}
+                </button>
+                <button
+                  onClick={handleSaveSelectedSections}
+                  className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition hover:opacity-90"
+                  style={{
+                    backgroundColor: selectedSections.size > 0 ? 'var(--accent)' : 'var(--surface-subtle)',
+                    color: selectedSections.size > 0 ? 'white' : 'var(--text-muted)',
+                    cursor: selectedSections.size > 0 ? 'pointer' : 'not-allowed'
+                  }}
+                  disabled={selectedSections.size === 0}
+                >
+                  選択したセクションを保存 ({selectedSections.size}個)
+                </button>
                 <button
                   onClick={handleSaveAllSections}
-                  className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition hover:opacity-90"
-                  style={{ backgroundColor: 'var(--accent)', color: 'white' }}
+                  className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
+                  style={{
+                    backgroundColor: 'var(--surface-subtle)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--surface-subtle)'
+                  }}
                 >
-                  すべてのセクションを一括保存
+                  すべて保存
                 </button>
                 <button
                   onClick={() => {
@@ -380,6 +461,7 @@ export default function UploadFilePage() {
                     setExtractedText('')
                     setSections([])
                     setSuggestedTags([])
+                    setSelectedSections(new Set())
                   }}
                   className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition"
                   style={{
@@ -402,24 +484,45 @@ export default function UploadFilePage() {
             {/* セクション一覧 */}
             <div className="space-y-6">
               {sections.map((section, index) => (
-                <div key={index} className="p-6 border rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
-                  <h3 className="text-[16px] font-semibold mb-3" style={{ color: 'var(--text)' }}>
-                    セクション{index + 1}: {section.title}
-                  </h3>
-                  <div className="mb-4 p-4 rounded-[var(--radius-sm)] text-[14px] leading-relaxed" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
+                <div
+                  key={index}
+                  className="p-6 border rounded-[var(--radius-sm)] transition-all"
+                  style={{
+                    backgroundColor: selectedSections.has(index) ? 'var(--surface-hover)' : 'var(--surface)',
+                    borderColor: selectedSections.has(index) ? 'var(--accent)' : 'var(--border)',
+                    borderWidth: selectedSections.has(index) ? '2px' : '1px'
+                  }}
+                >
+                  <div className="flex items-start gap-4 mb-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSections.has(index)}
+                      onChange={() => toggleSectionSelection(index)}
+                      className="mt-1 w-5 h-5 cursor-pointer"
+                      style={{ accentColor: 'var(--accent)' }}
+                    />
+                    <div className="flex-1">
+                      <h3 className="text-[16px] font-semibold" style={{ color: 'var(--text)' }}>
+                        セクション{index + 1}: {section.title}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="ml-9 mb-4 p-4 rounded-[var(--radius-sm)] text-[14px] leading-relaxed" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
                     {section.content.substring(0, 300)}
                     {section.content.length > 300 && '...'}
                     <div className="mt-2 text-[12px]" style={{ color: 'var(--text-muted)' }}>
                       {section.content.length}文字
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleSaveSection(section, index)}
-                    className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition hover:opacity-90"
-                    style={{ backgroundColor: 'var(--accent)', color: 'white' }}
-                  >
-                    このセクションを保存
-                  </button>
+                  <div className="ml-9">
+                    <button
+                      onClick={() => handleSaveSection(section, index)}
+                      className="px-4 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition hover:opacity-90"
+                      style={{ backgroundColor: 'var(--accent)', color: 'white' }}
+                    >
+                      このセクションのみ保存
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
