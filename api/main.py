@@ -1663,8 +1663,14 @@ async def upload_file(
 		elif file_extension == 'txt':
 			# テキストファイル処理
 			return await handle_text_file(file, split_by_topic)
+		elif file_extension in ['docx', 'doc']:
+			# Word文書処理
+			return await handle_docx_file(file, split_by_topic)
+		elif file_extension == 'pdf':
+			# PDF文書処理
+			return await handle_pdf_file(file, split_by_topic)
 		else:
-			raise HTTPException(status_code=400, detail=f"対応していないファイル形式です。mp3, wav, m4a, txt のみ対応しています。")
+			raise HTTPException(status_code=400, detail=f"対応していないファイル形式です。mp3, wav, m4a, txt, docx, pdf のみ対応しています。")
 	except HTTPException:
 		raise
 	except Exception as e:
@@ -1871,6 +1877,155 @@ async def handle_text_file(file: UploadFile, split_by_topic: bool = False):
 	except Exception as e:
 		print(f"❌ テキスト処理エラー: {e}")
 		raise HTTPException(status_code=500, detail=f"テキストファイルの処理に失敗しました: {str(e)}")
+
+
+async def handle_docx_file(file: UploadFile, split_by_topic: bool = False):
+	"""Word文書の処理（オプションでLLM分割）"""
+	from docx import Document
+	from .utils.tagging import generate_tags
+	from .utils.text_splitter import split_text_by_topic
+
+	try:
+		# ファイル内容を読み込み
+		content = await file.read()
+		print(f"📄 Word文書をアップロード: {file.filename} ({len(content)} bytes)")
+
+		# 一時ファイルとして保存
+		import tempfile
+		with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp_file:
+			tmp_file.write(content)
+			tmp_path = tmp_file.name
+
+		try:
+			# Word文書を読み込み
+			doc = Document(tmp_path)
+
+			# すべての段落からテキストを抽出
+			paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
+			text = '\n'.join(paragraphs)
+
+			print(f"✅ Word文書読み込み完了 ({len(text)}文字)")
+
+		finally:
+			# 一時ファイルを削除
+			os.remove(tmp_path)
+
+		# タグ生成（全体のタグ）
+		existing_tags_response = supabase.table("knowledge_base").select("tags").limit(100).execute()
+		all_existing_tags = []
+		for item in existing_tags_response.data:
+			if item.get("tags"):
+				all_existing_tags.extend(item["tags"])
+		unique_tags = list(set(all_existing_tags))
+
+		suggested_tags = generate_tags(text[:1000], unique_tags)
+		print(f"🏷️  自動タグ生成: {suggested_tags}")
+
+		# LLMで分割する場合
+		if split_by_topic:
+			print(f"🔀 LLMで意味のあるまとまりに分割中...")
+			sections = split_text_by_topic(text)
+			print(f"✅ {len(sections)}個のセクションに分割しました")
+
+			return {
+				"success": True,
+				"text": text,
+				"sections": sections,
+				"suggested_tags": suggested_tags,
+				"file_type": "docx",
+				"filename": file.filename,
+				"split": True
+			}
+		else:
+			return {
+				"success": True,
+				"text": text,
+				"suggested_tags": suggested_tags,
+				"file_type": "docx",
+				"filename": file.filename,
+				"split": False
+			}
+
+	except Exception as e:
+		print(f"❌ Word文書処理エラー: {e}")
+		raise HTTPException(status_code=500, detail=f"Word文書の処理に失敗しました: {str(e)}")
+
+
+async def handle_pdf_file(file: UploadFile, split_by_topic: bool = False):
+	"""PDF文書の処理（オプションでLLM分割）"""
+	from pypdf import PdfReader
+	from .utils.tagging import generate_tags
+	from .utils.text_splitter import split_text_by_topic
+
+	try:
+		# ファイル内容を読み込み
+		content = await file.read()
+		print(f"📄 PDF文書をアップロード: {file.filename} ({len(content)} bytes)")
+
+		# 一時ファイルとして保存
+		import tempfile
+		with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+			tmp_file.write(content)
+			tmp_path = tmp_file.name
+
+		try:
+			# PDFを読み込み
+			reader = PdfReader(tmp_path)
+
+			# すべてのページからテキストを抽出
+			pages_text = []
+			for page in reader.pages:
+				page_text = page.extract_text()
+				if page_text.strip():
+					pages_text.append(page_text)
+
+			text = '\n'.join(pages_text)
+
+			print(f"✅ PDF文書読み込み完了 ({len(reader.pages)}ページ、{len(text)}文字)")
+
+		finally:
+			# 一時ファイルを削除
+			os.remove(tmp_path)
+
+		# タグ生成（全体のタグ）
+		existing_tags_response = supabase.table("knowledge_base").select("tags").limit(100).execute()
+		all_existing_tags = []
+		for item in existing_tags_response.data:
+			if item.get("tags"):
+				all_existing_tags.extend(item["tags"])
+		unique_tags = list(set(all_existing_tags))
+
+		suggested_tags = generate_tags(text[:1000], unique_tags)
+		print(f"🏷️  自動タグ生成: {suggested_tags}")
+
+		# LLMで分割する場合
+		if split_by_topic:
+			print(f"🔀 LLMで意味のあるまとまりに分割中...")
+			sections = split_text_by_topic(text)
+			print(f"✅ {len(sections)}個のセクションに分割しました")
+
+			return {
+				"success": True,
+				"text": text,
+				"sections": sections,
+				"suggested_tags": suggested_tags,
+				"file_type": "pdf",
+				"filename": file.filename,
+				"split": True
+			}
+		else:
+			return {
+				"success": True,
+				"text": text,
+				"suggested_tags": suggested_tags,
+				"file_type": "pdf",
+				"filename": file.filename,
+				"split": False
+			}
+
+	except Exception as e:
+		print(f"❌ PDF文書処理エラー: {e}")
+		raise HTTPException(status_code=500, detail=f"PDF文書の処理に失敗しました: {str(e)}")
 
 
 @app.post("/references/from-feedback")

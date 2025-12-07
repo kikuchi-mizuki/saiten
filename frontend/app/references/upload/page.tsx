@@ -75,19 +75,23 @@ export default function UploadFilePage() {
   function handleFileSelect(file: File) {
     const validAudioExtensions = ['.mp3', '.wav', '.m4a']
     const validTextExtensions = ['.txt']
+    const validDocExtensions = ['.docx', '.doc']
+    const validPdfExtensions = ['.pdf']
     const fileName = file.name.toLowerCase()
 
     const isValidAudio = validAudioExtensions.some(ext => fileName.endsWith(ext))
     const isValidText = validTextExtensions.some(ext => fileName.endsWith(ext))
+    const isValidDoc = validDocExtensions.some(ext => fileName.endsWith(ext))
+    const isValidPdf = validPdfExtensions.some(ext => fileName.endsWith(ext))
 
-    if (!isValidAudio && !isValidText) {
-      alert('対応していないファイル形式です。mp3, wav, m4a, txt のみ対応しています。')
+    if (!isValidAudio && !isValidText && !isValidDoc && !isValidPdf) {
+      alert('対応していないファイル形式です。mp3, wav, m4a, txt, docx, pdf のみ対応しています。')
       return
     }
 
-    const maxSize = isValidAudio ? 100 * 1024 * 1024 : 1 * 1024 * 1024
+    const maxSize = isValidAudio ? 100 * 1024 * 1024 : 10 * 1024 * 1024 // 音声100MB、その他10MB
     if (file.size > maxSize) {
-      alert(`ファイルサイズが大きすぎます。${isValidAudio ? '100MB' : '1MB'}以下にしてください。`)
+      alert(`ファイルサイズが大きすぎます。${isValidAudio ? '100MB' : '10MB'}以下にしてください。`)
       return
     }
 
@@ -394,7 +398,7 @@ export default function UploadFilePage() {
                 📎 ファイルを選択
                 <input
                   type="file"
-                  accept=".mp3,.wav,.m4a,.txt"
+                  accept=".mp3,.wav,.m4a,.txt,.docx,.doc,.pdf"
                   className="hidden"
                   onChange={(e) => {
                     if (e.target.files && e.target.files.length > 0) {
@@ -406,7 +410,7 @@ export default function UploadFilePage() {
               <div className="mt-6 text-[12px] flex flex-col items-center" style={{ color: 'var(--text-muted)' }}>
                 <p className="mb-2">対応形式:</p>
                 <p>音声: mp3, wav, m4a（最大100MB）</p>
-                <p>テキスト: txt（最大1MB）</p>
+                <p>文書: txt, docx, pdf（最大10MB）</p>
               </div>
             </div>
           </>
