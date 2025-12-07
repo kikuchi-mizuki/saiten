@@ -353,6 +353,7 @@ export default function ReferencesPage() {
               <option value="all">全て</option>
               <option value="reflection">振り返り</option>
               <option value="final">最終レポート</option>
+              <option value="other">その他</option>
             </select>
 
             {/* 検索 */}
@@ -444,11 +445,13 @@ export default function ReferencesPage() {
                           backgroundColor:
                             ref.type === 'reflection'
                               ? 'var(--accent)'
+                              : ref.type === 'other'
+                              ? '#6B7280'
                               : 'var(--text-muted)',
                           color: 'white',
                         }}
                       >
-                        {ref.type === 'reflection' ? '振り返り' : '最終'}
+                        {ref.type === 'reflection' ? '振り返り' : ref.type === 'other' ? 'その他' : '最終'}
                       </span>
                       <span
                         className="text-[12px]"
@@ -603,6 +606,7 @@ export default function ReferencesPage() {
                 >
                   <option value="reflection">振り返り</option>
                   <option value="final">最終レポート</option>
+                  <option value="other">その他</option>
                 </select>
               </div>
 
