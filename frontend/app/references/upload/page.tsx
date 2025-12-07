@@ -161,13 +161,14 @@ export default function UploadFilePage() {
       })
 
       if (!response.ok) {
-        throw new Error('保存に失敗しました')
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }))
+        throw new Error(`保存に失敗しました (${response.status}): ${errorData.detail || errorData.message || '不明なエラー'}`)
       }
 
       alert(`セクション${index + 1}「${section.title}」を保存しました！`)
     } catch (error) {
       console.error('Save error:', error)
-      alert('保存に失敗しました')
+      alert(error instanceof Error ? error.message : '保存に失敗しました')
     }
   }
 
@@ -197,15 +198,28 @@ export default function UploadFilePage() {
 
     try {
       const selectedIndexes = Array.from(selectedSections).sort((a, b) => a - b)
+      let successCount = 0
+      let failedSections: string[] = []
+
       for (const index of selectedIndexes) {
-        await handleSaveSection(sections[index], index)
+        try {
+          await handleSaveSection(sections[index], index)
+          successCount++
+        } catch (error) {
+          failedSections.push(`セクション${index + 1}`)
+          console.error(`Failed to save section ${index}:`, error)
+        }
       }
 
-      alert(`${selectedSections.size}個の選択されたセクションを保存しました！`)
-      router.push('/references')
+      if (failedSections.length > 0) {
+        alert(`${successCount}個のセクションを保存しました。\n失敗: ${failedSections.join(', ')}`)
+      } else {
+        alert(`${selectedSections.size}個の選択されたセクションを保存しました！`)
+        router.push('/references')
+      }
     } catch (error) {
       console.error('Save selected error:', error)
-      alert('選択したセクションの保存に失敗しました')
+      alert(error instanceof Error ? error.message : '選択したセクションの保存に失敗しました')
     }
   }
 
