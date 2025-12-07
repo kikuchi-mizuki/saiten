@@ -1130,30 +1130,34 @@ async def generate(req: GenerateRequest, user: dict = Depends(verify_jwt)) -> Ge
 async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt)):
 	doc_type = (req.type or "reflection")
 
-	# 1. PII検出・マスキング
+	# 1. PII検出・マスキング（検出のみ、レポート処理には使用しない）
+	# 注: レポート本文には個人情報が含まれていないため、マスキングは不要
+	#     PIIDetectorが企業名・事業名などを誤検出し、レポート内容が失われる問題を回避
 	pii_detector = PIIDetector()
 	masked_text, detected_pii = pii_detector.detect_and_mask(req.text)
 
-	# 2. マスキング後のテキストで処理を実行
-	refs = retrieve_refs(masked_text, doc_type, k=5)  # Phase 2: 参照例を2件→5件に増加
-	scores = simple_score(masked_text)
+	# 2. 元のテキストで処理を実行
+	# 注: レポートに個人情報が含まれていないため、元のテキストを使用
+	#     これにより、企業名、事業名、戦略名などの固有名詞が正しく処理される
+	refs = retrieve_refs(req.text, doc_type, k=5)  # Phase 2: 参照例を2件→5件に増加
+	scores = simple_score(req.text)
 	llm_used = False
 	llm_error = None
 	draft = None
-	
+
 	# max_tokensとsystem_messageを設定（150-250字固定）
 	max_tokens = 450  # 150-250字 ≈ 300-500トークン（安全マージン含む）
 	# 最新のsystem_messageを使用（call_openai関数のデフォルトを使う）
 	system_message = None  # Noneの場合、call_openai内で最新のsystem_messageが使われる
-	
-	# 3. コメント生成（マスキング後のテキストを使用）
+
+	# 3. コメント生成（元のテキストを使用）
 	if USE_LLM and os.environ.get("OPENAI_API_KEY"):
-		prompt = build_llm_prompt(masked_text, doc_type, refs, scores)
+		prompt = build_llm_prompt(req.text, doc_type, refs, scores)
 		draft, llm_error = call_openai(prompt, max_tokens=max_tokens, system_message=system_message)
 		llm_used = draft is not None and llm_error is None
 	if not draft:
 		if doc_type == "reflection":
-			draft = generate_reflection_draft(masked_text, refs, scores)
+			draft = generate_reflection_draft(req.text, refs, scores)
 		else:
 			draft = "\n".join([
 				"全体評価: 学びの接続と仮説の筋が見られます。",
