@@ -28,7 +28,7 @@ async function getAuthHeaders(): Promise<HeadersInit> {
  */
 export interface ReferenceExample {
   id: string
-  type: 'reflection' | 'final'
+  type: 'reflection' | 'final' | 'other'
   text: string
   tags: string[]
   source: string
@@ -38,7 +38,7 @@ export interface ReferenceExample {
  * 参照例作成リクエスト
  */
 export interface ReferenceCreateRequest {
-  type: 'reflection' | 'final'
+  type: 'reflection' | 'final' | 'other'
   text: string
   tags: string[]
   source?: string
@@ -48,7 +48,7 @@ export interface ReferenceCreateRequest {
  * 参照例更新リクエスト
  */
 export interface ReferenceUpdateRequest {
-  type?: 'reflection' | 'final'
+  type?: 'reflection' | 'final' | 'other'
   text?: string
   tags?: string[]
   source?: string
@@ -60,7 +60,7 @@ export interface ReferenceUpdateRequest {
 export interface GetReferencesOptions {
   search?: string
   tags?: string
-  type?: 'reflection' | 'final'
+  type?: 'reflection' | 'final' | 'other'
   sort?: 'created_desc' | 'created_asc'
   page?: number
   per_page?: number

@@ -27,7 +27,7 @@ export default function ReferencesPage() {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [references, setReferences] = useState<ReferenceExample[]>([])
-  const [filterType, setFilterType] = useState<'all' | 'reflection' | 'final'>('all')
+  const [filterType, setFilterType] = useState<'all' | 'reflection' | 'final' | 'other'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Phase 2: ページネーション対応
@@ -42,7 +42,7 @@ export default function ReferencesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // フォーム状態
-  const [formType, setFormType] = useState<'reflection' | 'final'>('reflection')
+  const [formType, setFormType] = useState<'reflection' | 'final' | 'other'>('reflection')
   const [formText, setFormText] = useState('')
   const [formTags, setFormTags] = useState('')
   const [autoTagged, setAutoTagged] = useState(false)  // Phase 2: LLM自動タグ付け
