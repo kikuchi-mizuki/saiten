@@ -1162,8 +1162,11 @@ async def generate_direct(req: DirectGenRequest, user: dict = Depends(verify_jwt
 				"総括: あり方に立脚し、次の一歩を具体化しましょう。",
 			])
 
-	# 4. 要約生成（常にLLM使用、マスキング後のテキストを使用）
-	summary, summary_llm_used, summary_error = generate_summary(masked_text, doc_type)
+	# 4. 要約生成（常にLLM使用、元のテキストを使用）
+	# 注: 要約は教授のみが閲覧するため、個人情報保護の必要がない
+	#     マスキング処理により固有名詞（企業名、事業名など）まで誤検出されるため、
+	#     要約生成には元のテキストを使用する
+	summary, summary_llm_used, summary_error = generate_summary(req.text, doc_type)
 
 	return {
 		"report_id": None,
