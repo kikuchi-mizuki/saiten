@@ -41,63 +41,56 @@ def split_text_by_topic(text: str, max_chunk_size: int = 1500) -> List[Dict[str,
 - すべての内容を漏らさず分割する
 
 # 出力形式
-以下のJSON形式で出力してください：
-```json
-[
+以下のJSON形式で出力してください（sectionsキーでリストを返す）：
+{{"sections": [
   {{"title": "セクション1のタイトル", "content": "セクション1の内容（元のテキストそのまま）"}},
-  {{"title": "セクション2のタイトル", "content": "セクション2の内容（元のテキストそのまま）"}},
-  ...
-]
-```
+  {{"title": "セクション2のタイトル", "content": "セクション2の内容（元のテキストそのまま）"}}
+]}}
 
 # テキスト
 {text}
-
-# 出力
 """
 
     try:
+        # 日本語は1文字あたり約2-3トークン、JSON構造のオーバーヘッドも考慮
+        # gpt-4oの最大出力トークン数は16,384なので、安全マージンを持って計算
+        estimated_tokens = int(len(text) * 3.5)  # 日本語の文字数 × 3.5
+        max_output_tokens = min(estimated_tokens, 15000)  # 最大15,000トークン
+
         response = client.chat.completions.create(
             model="gpt-4o",  # 高品質な分割のためgpt-4oを使用
             messages=[
                 {
                     "role": "system",
-                    "content": "あなたはテキストを意味のあるまとまりに分割する専門家です。元のテキストの内容を一切変更せず、適切に分割してください。"
+                    "content": "あなたはテキストを意味のあるまとまりに分割する専門家です。元のテキストの内容を一切変更せず、適切に分割してください。必ずJSON形式で応答してください。"
                 },
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=len(text) + 1000,  # 十分なトークン数を確保
-            response_format={"type": "json_object"} if "gpt-4" in "gpt-4o" else None
+            max_tokens=max_output_tokens,
+            response_format={"type": "json_object"}  # JSON形式を強制
         )
 
         result_text = response.choices[0].message.content.strip()
 
-        # JSONを抽出（```json ... ```の場合に対応）
-        if "```json" in result_text:
-            import re
-            json_match = re.search(r'```json\s*(.*?)\s*```', result_text, re.DOTALL)
-            if json_match:
-                result_text = json_match.group(1)
-
-        # JSONをパース
+        # JSONをパース（response_format="json_object"を使用しているので直接パース可能）
         import json
-        sections = json.loads(result_text)
+        result = json.loads(result_text)
 
-        # リスト形式でない場合（辞書でラップされている場合）
-        if isinstance(sections, dict):
-            # {"sections": [...]} のような形式の場合
-            if "sections" in sections:
-                sections = sections["sections"]
-            # {"result": [...]} のような形式の場合
-            elif "result" in sections:
-                sections = sections["result"]
-            else:
-                # 最初のリスト値を取得
-                for value in sections.values():
-                    if isinstance(value, list):
-                        sections = value
-                        break
+        # {"sections": [...]} 形式を期待
+        if "sections" in result:
+            sections = result["sections"]
+        else:
+            # フォールバック: 最初のリスト値を取得
+            sections = result
+            for value in result.values():
+                if isinstance(value, list):
+                    sections = value
+                    break
+
+        # セクション数のバリデーション
+        if not sections or len(sections) == 0:
+            raise ValueError("分割結果が空です")
 
         print(f"✅ LLMで{len(sections)}個のセクションに分割しました")
 
