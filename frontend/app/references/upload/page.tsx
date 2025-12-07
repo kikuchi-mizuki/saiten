@@ -25,6 +25,7 @@ export default function UploadFilePage() {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [splitByTopic, setSplitByTopic] = useState(true) // デフォルトで分割ON
+  const [contentType, setContentType] = useState<'reflection' | 'final' | 'other'>('other') // コンテンツタイプ
 
   // 抽出結果
   const [extractedText, setExtractedText] = useState('')
@@ -148,7 +149,7 @@ export default function UploadFilePage() {
         body: JSON.stringify({
           text: section.content,
           tags: [...suggestedTags, section.title], // 全体タグ + セクションタイトル
-          type: 'reflection',
+          type: contentType, // ユーザーが選択したコンテンツタイプを使用
           source: fileType === 'audio' ? 'audio_upload' : 'text_upload'
         })
       })
@@ -196,7 +197,7 @@ export default function UploadFilePage() {
         body: JSON.stringify({
           text: extractedText,
           tags: suggestedTags,
-          type: 'reflection',
+          type: contentType, // ユーザーが選択したコンテンツタイプを使用
           source: fileType === 'audio' ? 'audio_upload' : 'text_upload'
         })
       })

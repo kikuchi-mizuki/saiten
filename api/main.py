@@ -261,7 +261,7 @@ class ReferenceExample(BaseModel):
 
 
 class ReferenceCreateRequest(BaseModel):
-	type: str  # 'reflection' | 'final'
+	type: str  # 'reflection' | 'final' | 'other'
 	text: str
 	tags: List[str]
 	source: Optional[str] = "professor_custom"
@@ -502,9 +502,13 @@ def retrieve_refs(text: str, doc_type: str, k: int = 5) -> List[str]:
 			}
 		).execute()
 
-		# レポート種別でフィルタ
+		# レポート種別でフィルタ（同じタイプ + 「その他」を含める）
+		# 注: 「その他」は教授の一般的な思考・講義内容などで、全てのレポートタイプで参考になる
 		target_type = "reflection" if doc_type == "reflection" else "final"
-		filtered = [item for item in result.data if item.get("type") == target_type]
+		filtered = [
+			item for item in result.data
+			if item.get("type") == target_type or item.get("type") == "other"
+		]
 
 		# 上位k件のテキストを返す
 		return [item["text"] for item in filtered[:k]]
@@ -512,10 +516,14 @@ def retrieve_refs(text: str, doc_type: str, k: int = 5) -> List[str]:
 	except Exception as e:
 		# エラー時はJaccard検索にフォールバック
 		print(f"⚠️ Embedding検索エラー ({e.__class__.__name__}), Jaccard検索を使用")
-		# フォールバック: 既存のJaccard検索
+		# フォールバック: 既存のJaccard検索（同じタイプ + 「その他」を含める）
 		samples = load_samples()
 		toks = tokenize(text)
-		candidates = [s for s in samples if s.get("type") == ("reflection" if doc_type == "reflection" else "final")]
+		target_type = "reflection" if doc_type == "reflection" else "final"
+		candidates = [
+			s for s in samples
+			if s.get("type") == target_type or s.get("type") == "other"
+		]
 		scored = sorted(((jaccard(toks, tokenize(c.get("text", ""))), c.get("text", "")) for c in candidates), reverse=True)
 		return [t for _, t in scored[:k]]
 
