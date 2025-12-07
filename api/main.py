@@ -663,41 +663,76 @@ def generate_reflection_draft(text: str, refs: List[str], scores: Dict[str, any]
 
 
 # 要約機能: 3形式（エグゼクティブサマリー、箇条書き、構造化）
-def call_openai_summary(prompt: str, system_prompt: str = None) -> Tuple[Optional[str], Optional[str]]:
+def call_openai_summary(prompt: str, system_prompt: str = None, use_fallback: bool = True) -> Tuple[Optional[str], Optional[str]]:
 	"""要約生成用のOpenAI API呼び出し
 
 	注: 要約生成には高性能なgpt-4oを使用します。
-	コメント生成（gpt-4o-mini）よりも要約の品質を重視するため。
+	gpt-4oが利用できない場合は自動的にgpt-4o-miniにフォールバックします。
 	"""
 	if not OPENAI_API_KEY:
 		return None, "APIキーが設定されていません"
-	try:
-		messages = []
-		if system_prompt:
-			messages.append({"role": "system", "content": system_prompt})
-		messages.append({"role": "user", "content": prompt})
 
-		resp = requests.post(
-			"https://api.openai.com/v1/chat/completions",
-			headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
-			json={
-				"model": "gpt-4o",  # 要約は高品質なgpt-4oを使用（gpt-4o-miniではなく）
-				"messages": messages,
-				"temperature": 0.3,  # 要約は低いtemperatureで一貫性を保つ
-				"max_tokens": 2000,  # 詳細な要約のために十分なトークン数を確保
-			},
-			timeout=60,  # gpt-4oは処理が遅い可能性があるのでタイムアウトを延長
-		)
-		resp.raise_for_status()
-		data = resp.json()
-		content = data.get("choices", [{}])[0].get("message", {}).get("content")
-		return content, None
-	except requests.exceptions.Timeout:
-		return None, "タイムアウト: API接続がタイムアウトしました"
-	except requests.exceptions.RequestException as e:
-		return None, f"APIエラー: {str(e)}"
-	except Exception as e:
-		return None, f"予期しないエラー: {str(e)}"
+	# 環境変数で要約用モデルを指定可能（デフォルトはgpt-4o）
+	summary_model = os.environ.get("SUMMARY_MODEL", "gpt-4o")
+
+	# 試行するモデルのリスト（gpt-4o → gpt-4o-miniの順）
+	models_to_try = [summary_model]
+	if use_fallback and summary_model == "gpt-4o":
+		models_to_try.append("gpt-4o-mini")  # フォールバック用
+
+	last_error = None
+
+	for model in models_to_try:
+		try:
+			messages = []
+			if system_prompt:
+				messages.append({"role": "system", "content": system_prompt})
+			messages.append({"role": "user", "content": prompt})
+
+			resp = requests.post(
+				"https://api.openai.com/v1/chat/completions",
+				headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
+				json={
+					"model": model,
+					"messages": messages,
+					"temperature": 0.3,  # 要約は低いtemperatureで一貫性を保つ
+					"max_tokens": 2000,  # 詳細な要約のために十分なトークン数を確保
+				},
+				timeout=60 if model == "gpt-4o" else 30,
+			)
+			resp.raise_for_status()
+			data = resp.json()
+			content = data.get("choices", [{}])[0].get("message", {}).get("content")
+
+			# 成功した場合、使用したモデルをログに記録（デバッグ用）
+			if model != summary_model:
+				print(f"[INFO] Fallback to {model} for summary generation")
+
+			return content, None
+
+		except requests.exceptions.Timeout:
+			last_error = f"タイムアウト: {model}での接続がタイムアウトしました"
+			if model == models_to_try[-1]:  # 最後のモデルでもエラー
+				return None, last_error
+			# 次のモデルを試行
+			continue
+
+		except requests.exceptions.RequestException as e:
+			last_error = f"APIエラー ({model}): {str(e)}"
+			if model == models_to_try[-1]:  # 最後のモデルでもエラー
+				return None, last_error
+			# 次のモデルを試行
+			print(f"[WARNING] Failed with {model}, trying fallback model...")
+			continue
+
+		except Exception as e:
+			last_error = f"予期しないエラー ({model}): {str(e)}"
+			if model == models_to_try[-1]:  # 最後のモデルでもエラー
+				return None, last_error
+			# 次のモデルを試行
+			continue
+
+	return None, last_error
 
 
 def generate_summary_llm(text: str, doc_type: str = "reflection") -> Tuple[Dict[str, any], bool]:
