@@ -354,7 +354,7 @@ export default function UploadFilePage() {
         )}
 
         {selectedFile && !extractedText && (
-          <div className="text-center p-12 border rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <div className="flex flex-col items-center p-12 border rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
             <div className="text-[48px] mb-4">✅</div>
             <p className="text-[18px] mb-2" style={{ color: 'var(--text)' }}>
               ファイル選択: {selectedFile.name}
@@ -377,7 +377,7 @@ export default function UploadFilePage() {
             )}
 
             {isUploading && (
-              <div>
+              <div className="flex flex-col items-center w-full">
                 <p className="text-[16px] mb-4" style={{ color: 'var(--text)' }}>🔄 処理中...</p>
                 <div className="w-full rounded h-4 mb-4" style={{ backgroundColor: 'var(--surface-subtle)' }}>
                   <div
@@ -388,7 +388,7 @@ export default function UploadFilePage() {
                     }}
                   />
                 </div>
-                <p className="text-[14px]" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-[14px] text-center" style={{ color: 'var(--text-muted)' }}>
                   {uploadProgress < 100 ? 'アップロード中...' :
                    selectedFile.name.toLowerCase().endsWith('.txt') ? 'テキスト処理中...' :
                    '🔄 Whisper APIで文字起こし中...'}
