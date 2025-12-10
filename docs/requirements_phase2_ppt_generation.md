@@ -569,6 +569,11 @@ def validate_markdown(content):
 
 ## Design Specifications
 
+### Slide Format
+- **Aspect Ratio**: 16:9 (Standard presentation format)
+- **Consistent sizing across all slides**
+- Optimized for modern projectors and displays
+
 ### Visual Style
 Professional yet warm and approachable, suitable for lectures
 and presentations to diverse audiences.
@@ -592,8 +597,19 @@ and presentations to diverse audiences.
 ### Layout Guidelines
 - **Whitespace**: Generous margins and padding
 - **Alignment**: Left-aligned for body text
-- **Visual Elements**: Icons and emojis moderately, focus on text
 - **Bullet Points**: Maximum 3-5 per slide
+
+### Visual Elements Guidelines
+- **Icons & Pictograms**: Use simple, meaningful icons to represent concepts
+  - Examples: lightbulb for ideas, arrow for growth, handshake for partnership
+- **Charts & Diagrams**: Include flowcharts, step diagrams, comparison tables
+  - Visual representation of processes and data
+- **Photos & Illustrations**: Use relevant images to convey situations
+  - Examples: women entrepreneurs, business scenes, collaboration
+- **Infographics**: Visualize statistics and data clearly
+  - Examples: pie charts, percentage visualizations
+- **Placement**: Balance text and visuals, avoid overcrowding
+- **Consistency**: Maintain visual style across all slides
 
 ### Slide Structure
 - **Title Slides**: Center-aligned, large text, minimal
@@ -615,10 +631,16 @@ forward-looking and hopeful.
 
 **Footer**: 夫人会講演 | 2025年12月8日
 
+**Visual Elements**:
+- Background: Subtle gradient or abstract pattern in primary colors
+- Central icon or illustration: Empowered woman silhouette or rising sun metaphor
+- Decorative elements using accent color (gold) for hope and possibility
+
 **Design Notes**:
 - Center-aligned
 - Large, bold typography
 - Use primary and secondary colors for visual impact
+- Minimal text, maximum visual impact
 
 ---
 
@@ -631,16 +653,18 @@ forward-looking and hopeful.
 - 海外事業の立ち上げ・運営の豊富な経験
 - M&A（企業買収・合併）を多数リード
 - 新規事業の立ち上げを複数経験
+- 私の経験から言えることは、事業を始めるのに完璧な準備は必要ないということです
+- 大切なのは「誰かの課題を解決したい」という想いと、小さな一歩を踏み出す勇気です
 
-**Professor's Message**:
-"事業を始めるのに、完璧な準備は必要ありません。
-大切なのは「誰かの課題を解決したい」という想いと、
-小さな一歩を踏み出す勇気です。"
+**Visual Elements**:
+- Professional headshot or silhouette icon (top-right)
+- Career timeline infographic showing 34 years at Panasonic
+- Icons for each achievement (building for overseas business, handshake for M&A, rocket for new ventures)
 
 **Design Notes**:
-- Left-aligned content
-- Professor's message in a highlighted box
+- Left-aligned content with balanced text and visuals
 - Professional yet approachable layout
+- Use secondary color (coral pink) for visual accents
 
 ---
 

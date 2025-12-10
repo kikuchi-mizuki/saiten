@@ -154,16 +154,28 @@ async def generate_genspark_prompt(
     markdown: str,
     profile: dict
 ) -> str:
-    """Gensparkプロンプト組み立て"""
+    """Gensparkプロンプト組み立て
+
+    重要な設計方針:
+    1. 教授の思考を本文に統合（別枠にしない）
+    2. スライドサイズを16:9で統一
+    3. 各スライドに視覚要素の指示を含める
+    """
     speaker_section = build_speaker_profile(profile)
     design_section = build_design_specs(profile['design_preferences'])
+    # 16:9のアスペクト比指定を追加
+    design_section += "\n\n### Slide Format\n- Aspect Ratio: 16:9\n- Consistent sizing across all slides"
     content_section = convert_markdown_to_genspark(markdown)
+    # 視覚要素の指示を含める
+    visual_guidelines = build_visual_guidelines()
 
     return f"""# Presentation Generation Request
 
 {speaker_section}
 
 {design_section}
+
+{visual_guidelines}
 
 {content_section}
 """
