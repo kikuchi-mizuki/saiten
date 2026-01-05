@@ -42,6 +42,10 @@ export default function DashboardPage() {
   const [satisfactionScore, setSatisfactionScore] = useState<number | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
 
+  // ファイルアップロード用の状態
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
 
   /**
    * コメントをクリップボードにコピー
@@ -148,6 +152,53 @@ export default function DashboardPage() {
     checkAuth()
   }, [router])
 
+
+  /**
+   * ファイルアップロード処理（テキスト抽出のみ）
+   */
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setIsUploading(true)
+    setUploadError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('split_by_topic', 'false') // テキスト抽出のみ
+
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8010'
+      const response = await fetch(`${API_BASE}/upload-file`, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'アップロードに失敗しました' }))
+        throw new Error(errorData.detail || 'アップロードに失敗しました')
+      }
+
+      const data = await response.json()
+
+      // テキスト抽出の場合、全文をレポート本文に挿入
+      if (data.full_text) {
+        setReportText(data.full_text)
+      } else if (data.sections && data.sections.length > 0) {
+        // セクション分割された場合は、全セクションを結合
+        const combinedText = data.sections.map((s: { content: string }) => s.content).join('\n\n')
+        setReportText(combinedText)
+      }
+
+      // ファイル選択をリセット
+      event.target.value = ''
+    } catch (error) {
+      console.error('Upload error:', error)
+      setUploadError(error instanceof Error ? error.message : 'ファイルの読み込みに失敗しました')
+    } finally {
+      setIsUploading(false)
+    }
+  }
 
   /**
    * コメント生成処理
@@ -435,24 +486,78 @@ export default function DashboardPage() {
 
               {/* レポート本文入力 */}
               <div className="mb-4">
-                <label
-                  className="block text-[13px] font-medium mb-2"
-                  style={{ color: 'var(--text)' }}
-                >
-                  レポート本文
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label
+                    className="block text-[13px] font-medium"
+                    style={{ color: 'var(--text)' }}
+                  >
+                    レポート本文
+                  </label>
+
+                  {/* ファイルアップロードボタン */}
+                  <div>
+                    <input
+                      type="file"
+                      id="file-upload"
+                      accept=".txt,.docx,.doc,.pdf"
+                      onChange={handleFileUpload}
+                      disabled={isGenerating || isUploading}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-sm)] text-[12px] font-medium transition cursor-pointer"
+                      style={{
+                        backgroundColor: isGenerating || isUploading ? 'var(--border)' : 'var(--surface-subtle)',
+                        color: isGenerating || isUploading ? 'var(--text-muted)' : 'var(--accent)',
+                        border: '1px solid var(--border)',
+                        cursor: isGenerating || isUploading ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        className="w-4 h-4"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+                        />
+                      </svg>
+                      {isUploading ? 'アップロード中...' : 'ファイルから読み込む'}
+                    </label>
+                  </div>
+                </div>
+
+                {/* アップロードエラー表示 */}
+                {uploadError && (
+                  <div
+                    className="mb-2 p-2 rounded-[var(--radius-sm)] text-[12px]"
+                    style={{
+                      backgroundColor: '#FEE2E2',
+                      color: '#DC2626'
+                    }}
+                  >
+                    {uploadError}
+                  </div>
+                )}
+
                 <textarea
-                  placeholder="レポートの内容を入力してください..."
+                  placeholder="レポートの内容を入力してください...（または上のボタンからWord/PDFファイルを読み込めます）"
                   rows={16}
                   value={reportText}
                   onChange={(e) => setReportText(e.target.value)}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isUploading}
                   className="w-full px-3 py-2 rounded-[var(--radius-sm)] text-[14px] resize-none"
                   style={{
                     backgroundColor: 'var(--bg)',
                     border: '1px solid var(--border)',
                     color: 'var(--text)',
-                    opacity: isGenerating ? 0.6 : 1
+                    opacity: isGenerating || isUploading ? 0.6 : 1
                   }}
                 />
               </div>
