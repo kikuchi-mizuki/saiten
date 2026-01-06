@@ -187,11 +187,20 @@ export default function DashboardPage() {
 
       const data = await response.json()
       console.log('✅ 受信データ:', data)
+      console.log('📊 データのキー:', Object.keys(data))
 
       // テキスト抽出の場合、全文をレポート本文に挿入
       if (data.full_text) {
         console.log('📝 full_textを挿入:', data.full_text.length, '文字')
         setReportText(data.full_text)
+      } else if (data.text) {
+        // textキーの場合
+        console.log('📝 textを挿入:', data.text.length, '文字')
+        setReportText(data.text)
+      } else if (data.content) {
+        // contentキーの場合
+        console.log('📝 contentを挿入:', data.content.length, '文字')
+        setReportText(data.content)
       } else if (data.sections && data.sections.length > 0) {
         // セクション分割された場合は、全セクションを結合
         const combinedText = data.sections.map((s: { content: string }) => s.content).join('\n\n')
@@ -199,7 +208,8 @@ export default function DashboardPage() {
         setReportText(combinedText)
       } else {
         console.warn('⚠️ データ構造が予期しない形式:', data)
-        setUploadError('テキストを抽出できませんでした')
+        console.warn('⚠️ 利用可能なキー:', Object.keys(data))
+        setUploadError('テキストを抽出できませんでした。データ: ' + JSON.stringify(Object.keys(data)))
       }
 
       // ファイル選択をリセット
