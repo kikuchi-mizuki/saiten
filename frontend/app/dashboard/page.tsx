@@ -160,6 +160,7 @@ export default function DashboardPage() {
     const file = event.target.files?.[0]
     if (!file) return
 
+    console.log('📁 ファイル選択:', file.name, file.type, file.size)
     setIsUploading(true)
     setUploadError(null)
 
@@ -169,31 +170,42 @@ export default function DashboardPage() {
       formData.append('split_by_topic', 'false') // テキスト抽出のみ
 
       const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8010'
+      console.log('🌐 API URL:', `${API_BASE}/upload-file`)
+
       const response = await fetch(`${API_BASE}/upload-file`, {
         method: 'POST',
         body: formData
       })
 
+      console.log('📥 レスポンス:', response.status, response.statusText)
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'アップロードに失敗しました' }))
+        console.error('❌ エラーレスポンス:', errorData)
         throw new Error(errorData.detail || 'アップロードに失敗しました')
       }
 
       const data = await response.json()
+      console.log('✅ 受信データ:', data)
 
       // テキスト抽出の場合、全文をレポート本文に挿入
       if (data.full_text) {
+        console.log('📝 full_textを挿入:', data.full_text.length, '文字')
         setReportText(data.full_text)
       } else if (data.sections && data.sections.length > 0) {
         // セクション分割された場合は、全セクションを結合
         const combinedText = data.sections.map((s: { content: string }) => s.content).join('\n\n')
+        console.log('📝 sectionsを結合:', combinedText.length, '文字')
         setReportText(combinedText)
+      } else {
+        console.warn('⚠️ データ構造が予期しない形式:', data)
+        setUploadError('テキストを抽出できませんでした')
       }
 
       // ファイル選択をリセット
       event.target.value = ''
     } catch (error) {
-      console.error('Upload error:', error)
+      console.error('❌ Upload error:', error)
       setUploadError(error instanceof Error ? error.message : 'ファイルの読み込みに失敗しました')
     } finally {
       setIsUploading(false)
