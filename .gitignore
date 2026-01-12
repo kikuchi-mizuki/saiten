@@ -43,6 +43,7 @@ frontend/.env.local
 frontend/.env.development.local
 frontend/.env.test.local
 frontend/.env.production.local
+frontend/.env.production  # 本番環境変数も除外（Railwayで設定）
 
 # Vercel
 frontend/.vercel

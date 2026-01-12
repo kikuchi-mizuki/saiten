@@ -84,14 +84,20 @@ export default function DashboardPage() {
             editedComment,
             reportType
           )
-          console.log('✅ 自動学習成功:', response.message)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('✅ 自動学習成功:', response.message)
+          }
         } catch (error) {
-          console.error('⚠️ 自動学習エラー:', error)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('⚠️ 自動学習エラー:', error)
+          }
           // エラーは無視（メイン機能に影響しない）
         }
       }
     } catch (error) {
-      console.error('Save edit time error:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Save edit time error:', error)
+      }
     }
   }
 
@@ -129,7 +135,9 @@ export default function DashboardPage() {
       setGenerateTime(null)
       setFeedbackId(null)
     } catch (error) {
-      console.error('Submit survey error:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Submit survey error:', error)
+      }
       alert('フィードバックの保存に失敗しました')
     }
   }
@@ -160,7 +168,10 @@ export default function DashboardPage() {
     const file = event.target.files?.[0]
     if (!file) return
 
-    console.log('📁 ファイル選択:', file.name, file.type, file.size)
+    // 開発環境のみログ出力
+    const isDev = process.env.NODE_ENV === 'development'
+    if (isDev) console.log('📁 ファイル選択:', file.name, file.type, file.size)
+
     setIsUploading(true)
     setUploadError(null)
 
@@ -170,52 +181,56 @@ export default function DashboardPage() {
       formData.append('split_by_topic', 'false') // テキスト抽出のみ
 
       const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8010'
-      console.log('🌐 API URL:', `${API_BASE}/upload-file`)
+      if (isDev) console.log('🌐 API URL:', `${API_BASE}/upload-file`)
 
       const response = await fetch(`${API_BASE}/upload-file`, {
         method: 'POST',
         body: formData
       })
 
-      console.log('📥 レスポンス:', response.status, response.statusText)
+      if (isDev) console.log('📥 レスポンス:', response.status, response.statusText)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'アップロードに失敗しました' }))
-        console.error('❌ エラーレスポンス:', errorData)
+        if (isDev) console.error('❌ エラーレスポンス:', errorData)
         throw new Error(errorData.detail || 'アップロードに失敗しました')
       }
 
       const data = await response.json()
-      console.log('✅ 受信データ:', data)
-      console.log('📊 データのキー:', Object.keys(data))
+      if (isDev) {
+        console.log('✅ 受信データ:', data)
+        console.log('📊 データのキー:', Object.keys(data))
+      }
 
       // テキスト抽出の場合、全文をレポート本文に挿入
       if (data.full_text) {
-        console.log('📝 full_textを挿入:', data.full_text.length, '文字')
+        if (isDev) console.log('📝 full_textを挿入:', data.full_text.length, '文字')
         setReportText(data.full_text)
       } else if (data.text) {
         // textキーの場合
-        console.log('📝 textを挿入:', data.text.length, '文字')
+        if (isDev) console.log('📝 textを挿入:', data.text.length, '文字')
         setReportText(data.text)
       } else if (data.content) {
         // contentキーの場合
-        console.log('📝 contentを挿入:', data.content.length, '文字')
+        if (isDev) console.log('📝 contentを挿入:', data.content.length, '文字')
         setReportText(data.content)
       } else if (data.sections && data.sections.length > 0) {
         // セクション分割された場合は、全セクションを結合
         const combinedText = data.sections.map((s: { content: string }) => s.content).join('\n\n')
-        console.log('📝 sectionsを結合:', combinedText.length, '文字')
+        if (isDev) console.log('📝 sectionsを結合:', combinedText.length, '文字')
         setReportText(combinedText)
       } else {
-        console.warn('⚠️ データ構造が予期しない形式:', data)
-        console.warn('⚠️ 利用可能なキー:', Object.keys(data))
-        setUploadError('テキストを抽出できませんでした。データ: ' + JSON.stringify(Object.keys(data)))
+        if (isDev) {
+          console.warn('⚠️ データ構造が予期しない形式:', data)
+          console.warn('⚠️ 利用可能なキー:', Object.keys(data))
+        }
+        setUploadError('テキストを抽出できませんでした。')
       }
 
       // ファイル選択をリセット
       event.target.value = ''
     } catch (error) {
-      console.error('❌ Upload error:', error)
+      if (isDev) console.error('❌ Upload error:', error)
       setUploadError(error instanceof Error ? error.message : 'ファイルの読み込みに失敗しました')
     } finally {
       setIsUploading(false)
@@ -267,7 +282,9 @@ export default function DashboardPage() {
           }
         }
       } catch (saveError) {
-        console.error('Save error:', saveError)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Save error:', saveError)
+        }
         // 保存エラーは警告のみ表示（生成は成功しているため）
         alert('データの保存に失敗しました。履歴には記録されません。')
       }
@@ -275,7 +292,9 @@ export default function DashboardPage() {
       // 生成成功時は自動的にコメント編集タブに切り替え
       setActiveTab('comment')
     } catch (error) {
-      console.error('Generate error:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Generate error:', error)
+      }
       setGenerateError(
         error instanceof Error
           ? error.message
@@ -294,7 +313,9 @@ export default function DashboardPage() {
       await signOut()
       router.push('/login')
     } catch (error) {
-      console.error('Sign out error:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Sign out error:', error)
+      }
       alert('ログアウトに失敗しました')
     }
   }
