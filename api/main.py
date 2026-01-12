@@ -2083,9 +2083,19 @@ async def create_reference_from_feedback(
 # 声紋管理・音声識別のAPIエンドポイント
 # ===========================================
 
-import numpy as np
-from utils.voiceprint_extractor import get_voiceprint_extractor
-from utils.speaker_diarization import get_speaker_diarization
+# 音声処理ライブラリの可用性をチェック
+AUDIO_PROCESSING_AVAILABLE = False
+try:
+	import numpy as np
+	from utils.voiceprint_extractor import get_voiceprint_extractor
+	from utils.speaker_diarization import get_speaker_diarization
+	AUDIO_PROCESSING_AVAILABLE = True
+except ImportError as e:
+	print(f"⚠️ 音声処理ライブラリが利用できません: {e}")
+	print("音声識別機能を使用するには、requirements.txtのコメントを外してPyTorchをインストールしてください")
+	numpy = None
+	get_voiceprint_extractor = None
+	get_speaker_diarization = None
 
 
 @app.post("/voiceprint/register")
@@ -2095,6 +2105,12 @@ async def register_voiceprint(
 	user: dict = Depends(verify_jwt)
 ):
 	"""教授の声紋を登録"""
+	if not AUDIO_PROCESSING_AVAILABLE:
+		raise HTTPException(
+			status_code=501,
+			detail="音声処理機能は現在利用できません。PyTorch等の依存パッケージをインストールしてください。"
+		)
+
 	if not supabase:
 		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
 
@@ -2151,6 +2167,9 @@ async def register_voiceprint(
 @app.get("/voiceprint/list")
 async def list_voiceprints(user: dict = Depends(verify_jwt)):
 	"""登録済み声紋のリストを取得"""
+	if not AUDIO_PROCESSING_AVAILABLE:
+		raise HTTPException(status_code=501, detail="音声処理機能は現在利用できません。")
+
 	if not supabase:
 		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
 
@@ -2164,6 +2183,9 @@ async def list_voiceprints(user: dict = Depends(verify_jwt)):
 @app.delete("/voiceprint/{voiceprint_id}")
 async def delete_voiceprint(voiceprint_id: str, user: dict = Depends(verify_jwt)):
 	"""声紋を削除"""
+	if not AUDIO_PROCESSING_AVAILABLE:
+		raise HTTPException(status_code=501, detail="音声処理機能は現在利用できません。")
+
 	if not supabase:
 		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
 
@@ -2183,6 +2205,9 @@ async def delete_voiceprint(voiceprint_id: str, user: dict = Depends(verify_jwt)
 @app.post("/audio/identify-speakers")
 async def identify_speakers_endpoint(file: UploadFile = File(...), user: dict = Depends(verify_jwt)):
 	"""音声ファイルから話者を識別"""
+	if not AUDIO_PROCESSING_AVAILABLE:
+		raise HTTPException(status_code=501, detail="音声処理機能は現在利用できません。")
+
 	import tempfile
 
 	temp_audio_path = None
@@ -2213,6 +2238,9 @@ async def identify_speakers_endpoint(file: UploadFile = File(...), user: dict = 
 @app.post("/audio/extract-professor-speech")
 async def extract_professor_speech(file: UploadFile = File(...), use_voiceprint: bool = True, user: dict = Depends(verify_jwt)):
 	"""音声ファイルから教授の発言のみを抽出"""
+	if not AUDIO_PROCESSING_AVAILABLE:
+		raise HTTPException(status_code=501, detail="音声処理機能は現在利用できません。")
+
 	if not supabase:
 		raise HTTPException(status_code=500, detail="Supabaseが設定されていません")
 

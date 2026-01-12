@@ -12,8 +12,11 @@ python-multipart>=0.0.6
 python-docx>=1.0.0
 pypdf>=3.17.0
 
-# 音声処理・話者識別
-speechbrain>=0.5.16
-pyannote.audio>=3.1.0
-torch>=2.0.0
-torchaudio>=2.0.0
+# 音声処理・話者識別（オプション）
+# 注意: これらのパッケージは非常に大きい（合計約2GB）
+# Railwayの無料プランでは制限がある可能性があります
+# 音声機能を有効にする場合のみ、以下のコメントを外してください
+# speechbrain>=0.5.16
+# pyannote.audio>=3.1.0
+# torch>=2.0.0,<2.5.0
+# torchaudio>=2.0.0,<2.5.0
