@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 interface Voiceprint {
@@ -16,7 +16,6 @@ interface Voiceprint {
 
 export default function VoiceprintPage() {
   const router = useRouter()
-  const supabase = createClient()
 
   const [voiceprints, setVoiceprints] = useState<Voiceprint[]>([])
   const [loading, setLoading] = useState(true)
